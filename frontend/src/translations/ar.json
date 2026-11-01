@@ -2260,5 +2260,8 @@
   "web_link": "رابط ويب",
   "open_link": "فتح الرابط",
   "support_reply_from_admin": "رد مسؤول مدرستك",
-  "got_it": "حسنًا"
+  "got_it": "حسنًا",
+  "verify_spam_hint": "قد يستغرق الأمر بضع دقائق. تحقق من مجلد البريد غير الهام أو الرسائل المزعجة.",
+  "verify_code_resent": "لقد أرسلنا الرمز مرة أخرى.",
+  "resend_in_seconds": "إعادة الإرسال خلال {seconds} ث"
 }

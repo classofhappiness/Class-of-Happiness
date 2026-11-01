@@ -2274,5 +2274,8 @@
   "web_link": "Web link",
   "open_link": "Open link",
   "support_reply_from_admin": "Reply from your school admin",
-  "got_it": "Got it"
+  "got_it": "Got it",
+  "verify_spam_hint": "It can take a few minutes. Check your Junk or Spam folder.",
+  "verify_code_resent": "We have sent the code again.",
+  "resend_in_seconds": "Resend in {seconds}s"
 }

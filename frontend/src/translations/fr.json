@@ -2417,5 +2417,8 @@
   "web_link": "Lien web",
   "open_link": "Ouvrir le lien",
   "support_reply_from_admin": "Réponse de l'administration de votre école",
-  "got_it": "Compris"
+  "got_it": "Compris",
+  "verify_spam_hint": "Cela peut prendre quelques minutes. Vérifiez votre dossier courrier indésirable ou spam.",
+  "verify_code_resent": "Nous avons renvoyé le code.",
+  "resend_in_seconds": "Renvoyer dans {seconds} s"
 }

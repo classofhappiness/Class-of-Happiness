@@ -2408,5 +2408,8 @@
   "web_link": "Enlace web",
   "open_link": "Abrir enlace",
   "support_reply_from_admin": "Respuesta de la administración de tu centro",
-  "got_it": "Entendido"
+  "got_it": "Entendido",
+  "verify_spam_hint": "Puede tardar unos minutos. Revisa la carpeta de correo no deseado o spam.",
+  "verify_code_resent": "Hemos enviado el código de nuevo.",
+  "resend_in_seconds": "Reenviar en {seconds} s"
 }

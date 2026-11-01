@@ -2260,5 +2260,8 @@
   "web_link": "网页链接",
   "open_link": "打开链接",
   "support_reply_from_admin": "学校管理员的回复",
-  "got_it": "知道了"
+  "got_it": "知道了",
+  "verify_spam_hint": "可能需要几分钟。请检查垃圾邮件文件夹。",
+  "verify_code_resent": "我们已重新发送验证码。",
+  "resend_in_seconds": "{seconds} 秒后重新发送"
 }

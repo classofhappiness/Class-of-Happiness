@@ -2408,5 +2408,8 @@
   "web_link": "Ligação web",
   "open_link": "Abrir ligação",
   "support_reply_from_admin": "Resposta do administrador da sua escola",
-  "got_it": "Entendi"
+  "got_it": "Entendi",
+  "verify_spam_hint": "Pode demorar alguns minutos. Verifique a pasta de lixo eletrónico ou spam.",
+  "verify_code_resent": "Enviámos o código novamente.",
+  "resend_in_seconds": "Reenviar em {seconds} s"
 }

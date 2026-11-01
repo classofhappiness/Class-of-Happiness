@@ -2260,5 +2260,8 @@
   "web_link": "वेब लिंक",
   "open_link": "लिंक खोलें",
   "support_reply_from_admin": "आपके स्कूल के एडमिन का उत्तर",
-  "got_it": "समझ गया"
+  "got_it": "समझ गया",
+  "verify_spam_hint": "इसमें कुछ मिनट लग सकते हैं। अपना जंक या स्पैम फ़ोल्डर देखें।",
+  "verify_code_resent": "हमने कोड फिर से भेज दिया है।",
+  "resend_in_seconds": "{seconds} सेकंड में फिर भेजें"
 }

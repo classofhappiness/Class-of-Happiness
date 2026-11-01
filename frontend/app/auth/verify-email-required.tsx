@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
@@ -43,6 +43,13 @@ export default function VerifyEmailRequiredScreen() {
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [resent, setResent] = useState(false);
+  // 60-second gap between sends (the server enforces it too, and allows 5 sends an hour). The first send happened at sign-up.
+  const [cooldown, setCooldown] = useState(60);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
 
   const handleVerify = async () => {
     if (code.trim().length < 6) {
@@ -63,11 +70,13 @@ export default function VerifyEmailRequiredScreen() {
   };
 
   const handleResend = async () => {
+    if (cooldown > 0) return;
     setError('');
     setResending(true);
     try {
       await resendVerificationEmail();
       setResent(true);
+      setCooldown(60);
     } catch (e) {
       setError(e instanceof Error ? e.message : (t('could_not_resend_retry') || 'Could not resend. Please try again.'));
     } finally {
@@ -110,7 +119,8 @@ export default function VerifyEmailRequiredScreen() {
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {resent ? <Text style={styles.resentText}>{t('new_code_on_way') || 'A new code is on its way.'}</Text> : null}
+          {resent ? <Text style={styles.resentText}>{t('verify_code_resent') || 'We have sent the code again.'}</Text> : null}
+          <Text style={styles.hintText}>{t('verify_spam_hint') || 'It can take a few minutes. Check your Junk or Spam folder.'}</Text>
 
           <TouchableOpacity
             style={[styles.button, verifying && styles.buttonDisabled]}
@@ -120,8 +130,8 @@ export default function VerifyEmailRequiredScreen() {
             {verifying ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>{t('verify_and_continue') || 'Verify & Continue'}</Text>}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.resendLink} onPress={handleResend} disabled={resending}>
-            <Text style={styles.resendLinkText}>{resending ? (t('sending_ellipsis') || 'Sending…') : (t('resend_code_link') || "Didn't get a code? Resend")}</Text>
+          <TouchableOpacity style={[styles.resendLink, cooldown > 0 && { opacity: 0.5 }]} onPress={handleResend} disabled={resending || cooldown > 0}>
+            <Text style={styles.resendLinkText}>{resending ? (t('sending_ellipsis') || 'Sending…') : cooldown > 0 ? (t('resend_in_seconds') || 'Resend in {seconds}s').replace('{seconds}', String(cooldown)) : (t('resend_code_link') || "Didn't get a code? Resend")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutLink} onPress={() => logout()}>
@@ -163,6 +173,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: 'white', fontSize: 16, fontWeight: '700' },
+  hintText: { color: '#777', fontSize: 13, textAlign: 'center', marginTop: 10, lineHeight: 18 },
   resendLink: { marginTop: 16, alignItems: 'center' },
   resendLinkText: { color: '#5C6BC0', fontSize: 13, fontWeight: '600' },
   logoutLink: { marginTop: 20, alignItems: 'center' },

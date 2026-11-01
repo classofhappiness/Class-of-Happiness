@@ -2417,5 +2417,8 @@
   "web_link": "Link web",
   "open_link": "Apri link",
   "support_reply_from_admin": "Risposta dell'amministratore della tua scuola",
-  "got_it": "Capito"
+  "got_it": "Capito",
+  "verify_spam_hint": "Può volerci qualche minuto. Controlla la cartella della posta indesiderata o spam.",
+  "verify_code_resent": "Abbiamo inviato di nuovo il codice.",
+  "resend_in_seconds": "Reinvia tra {seconds} s"
 }

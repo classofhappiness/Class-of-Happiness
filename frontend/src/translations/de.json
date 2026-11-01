@@ -2417,5 +2417,8 @@
   "web_link": "Weblink",
   "open_link": "Link öffnen",
   "support_reply_from_admin": "Antwort Ihrer Schulverwaltung",
-  "got_it": "Verstanden"
+  "got_it": "Verstanden",
+  "verify_spam_hint": "Es kann einige Minuten dauern. Prüfen Sie Ihren Spam- oder Junk-Ordner.",
+  "verify_code_resent": "Wir haben den Code erneut gesendet.",
+  "resend_in_seconds": "Erneut senden in {seconds} s"
 }
