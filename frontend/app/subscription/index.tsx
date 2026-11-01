@@ -272,7 +272,7 @@ export default function SubscriptionScreen() {
       <View style={st.freeCard}>
         <View style={st.freeRow}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
-          <Text style={st.freeText}><Text style={{ fontWeight: '700' }}>{t('free_forever_label') || 'Free forever:'}</Text> {t('free_forever_desc') || '1 parent · 2 family members · basic check-ins · creature rewards'}</Text>
+          <Text style={st.freeText}><Text style={{ fontWeight: '700' }}>{t('free_forever_label') || 'Free forever:'}</Text> {t('free_forever_desc') || 'Up to 2 children · basic check-ins · creature rewards'}</Text>
         </View>
       </View>
 
