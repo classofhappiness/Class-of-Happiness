@@ -5746,6 +5746,31 @@ def _clean_card_fields(body: dict) -> dict:
         raise HTTPException(status_code=400, detail="age_min cannot be above age_max")
     return out
 
+def _new_resource_owner(user: dict):
+    """The school_admin_id a NEW resource gets, decided here and never by the client: None (global) only for the
+    superadmin; a school admin's own id; a teacher's own school admin (or the teacher's own id when they have no school);
+    anyone else their own id. Every creation path uses this."""
+    role = user.get("role")
+    if role in ("admin", "superadmin"):
+        return None
+    if role == "school_admin":
+        return user["user_id"]
+    if role == "teacher":
+        return _teacher_school_admin_id(user) or user["user_id"]
+    return user["user_id"]
+
+def _insert_resource_row(row: dict, owner_school_admin_id, table=None):
+    """Insert a resource with its scope. If the school_admin_id column is missing (old database) the row is inserted
+    without it ONLY for a global (superadmin) resource; a scoped resource is never saved unscoped, because a row with no
+    school reads as visible to everyone."""
+    table = table if table is not None else supabase.table("resources")
+    try:
+        return table.insert({**row, "school_admin_id": owner_school_admin_id}).execute()
+    except Exception as e:
+        if owner_school_admin_id is None and "school_admin_id" in str(e):
+            return table.insert(row).execute()
+        raise
+
 def _resource_readable_by(user: dict, resource: dict) -> bool:
     if user.get("role") in ("admin", "superadmin"):
         return True
@@ -5773,9 +5798,9 @@ def _get_resource_scope_row(resource_id: str):
     """Light row (no base64 content) for ownership/scope checks. Falls back to the
     pre-school_admin_id column list, like the list endpoints."""
     try:
-        r = supabase.table("resources").select("id,is_global,created_by,user_id,school_admin_id").eq("id", resource_id).execute()
+        r = supabase.table("resources").select("id,content_type,is_global,created_by,user_id,school_admin_id").eq("id", resource_id).execute()
     except Exception:
-        r = supabase.table("resources").select("id,is_global,created_by,user_id").eq("id", resource_id).execute()
+        r = supabase.table("resources").select("id,content_type,is_global,created_by,user_id").eq("id", resource_id).execute()
     return r.data[0] if r.data else None
 
 @api_router.get("/resources")
@@ -5862,7 +5887,7 @@ async def create_resource(resource: ResourceCreate, request: Request):
     # /teacher-resources and /admin/resources. No live UI calls this endpoint today
     # (resourcesApi.create has zero callers), same defense-in-depth reasoning as those two.
     is_superadmin_caller = user.get("role") in ("admin", "superadmin")
-    owner_school_admin_id = None if is_superadmin_caller else user["user_id"]
+    owner_school_admin_id = _new_resource_owner(user)
     new_resource = {
         "id": str(uuid.uuid4()),
         "created_by": user["user_id"],
@@ -5877,9 +5902,10 @@ async def create_resource(resource: ResourceCreate, request: Request):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     try:
-        result = supabase.table("resources").insert({**new_resource, "school_admin_id": owner_school_admin_id}).execute()
-    except Exception:
-        result = supabase.table("resources").insert(new_resource).execute()
+        result = _insert_resource_row(new_resource, owner_school_admin_id)
+    except Exception as e:
+        logger.error(f"Resource insert failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not save the resource. Please try again.")
     return result.data[0] if result.data else new_resource
 
 @api_router.delete("/resources/{resource_id}")
@@ -16460,7 +16486,7 @@ async def create_admin_resource(request: Request):
     # grep), but it's still a reachable, authenticated API surface. Same role-resolved
     # scoping as /teacher-resources now, for consistency/defense-in-depth.
     is_superadmin_caller = user.get("role") in ("admin", "superadmin")
-    owner_school_admin_id = None if is_superadmin_caller else user["user_id"]
+    owner_school_admin_id = _new_resource_owner(user)
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -16479,23 +16505,10 @@ async def create_admin_resource(request: Request):
     }
 
     try:
-        result = supabase.table("resources").insert({**resource_data, "school_admin_id": owner_school_admin_id}).execute()
-    except Exception:
-        # Backward-compatible fallback if new columns are missing in DB schema.
-        fallback_data = {
-            "id": resource_data["id"],
-            "user_id": resource_data["user_id"],
-            "title": resource_data["title"],
-            "description": resource_data["description"],
-            "content_type": resource_data["content_type"],
-            "content": resource_data["content"],
-            "pdf_filename": resource_data["pdf_filename"],
-            "category": resource_data["category"],
-            "is_global": resource_data["is_global"],
-            "is_active": resource_data["is_active"],
-            "created_at": resource_data["created_at"],
-        }
-        result = supabase.table("resources").insert(fallback_data).execute()
+        result = _insert_resource_row(resource_data, owner_school_admin_id)
+    except Exception as e:
+        logger.error(f"Resource insert failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not save the resource. Please try again.")
 
     return result.data[0] if result.data else resource_data
 
@@ -17284,6 +17297,10 @@ async def update_resource(resource_id: str, request: Request):
     update_data = {k: v for k, v in body.items() if k in allowed}
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
+    if update_data.get("content_type") == "link" or (existing_row.get("content_type") == "link" and "content" in update_data):
+        update_data["content"] = _clean_link_url(update_data.get("content") or "")
+        if not update_data["content"]:
+            raise HTTPException(status_code=400, detail="Please enter a valid link starting with http:// or https://")
     supabase.table("resources").update(update_data).eq("id", resource_id).execute()
     updated = supabase.table("resources").select("*").eq("id", resource_id).execute()
     return updated.data[0] if updated.data else {}
@@ -17666,12 +17683,7 @@ async def create_teacher_resource(request: Request):
     # falls back to their own user_id rather than NULL, so their upload can never
     # accidentally read as "global" (NULL) once read-side filtering is built.
     is_superadmin_caller = user.get("role") in ("admin", "superadmin")
-    if is_superadmin_caller:
-        owner_school_admin_id = None
-    elif user.get("role") == "school_admin":
-        owner_school_admin_id = user["user_id"]
-    else:
-        owner_school_admin_id = _teacher_school_admin_id(user) or user["user_id"]
+    owner_school_admin_id = _new_resource_owner(user)
     resource_data = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -17700,14 +17712,7 @@ async def create_teacher_resource(request: Request):
         **_clean_card_fields(body),
     }
     try:
-        try:
-            result = supabase.table("resources").insert({**resource_data, "school_admin_id": owner_school_admin_id}).execute()
-        except Exception as e:
-            if "school_admin_id" not in str(e):
-                raise
-            # Migration 01_add_resources_school_admin_id.sql not run yet - fall back so
-            # uploads don't start hard-failing before then.
-            result = supabase.table("resources").insert(resource_data).execute()
+        result = _insert_resource_row(resource_data, owner_school_admin_id)
         return result.data[0] if result.data else resource_data
     except Exception as e:
         error_msg = str(e)
