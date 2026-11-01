@@ -14412,6 +14412,29 @@ async def get_subscription_status(request: Request):
 # existed on the backend — every "Subscribe" tap 404'd. Self-serve checkout is scoped to
 # teacher_monthly/parent_monthly only; school plans are sold manually (mailto enquiry in
 # the app), so no school branch here by design.
+def _has_live_stripe_subscription(user: dict) -> bool:
+    """True if Stripe holds an active, trialing or past_due subscription for this account:
+    on the stored customer, or on any customer with the same email (checkout creates a new
+    customer each time, so an older paid plan can sit on a customer the user row no longer
+    points at). Stripe is the source of truth; the user row's status is never flipped back
+    after a plan lapses, so it can't be used alone."""
+    if not STRIPE_SECRET_KEY:
+        return False
+    customer_ids = set()
+    if user.get("stripe_customer_id"):
+        customer_ids.add(user["stripe_customer_id"])
+    try:
+        if user.get("email"):
+            for c in _sget(stripe_lib.Customer.list(email=user["email"], limit=20), "data", []) or []:
+                customer_ids.add(_sget(c, "id"))
+        for cid in customer_ids:
+            for sub in _sget(stripe_lib.Subscription.list(customer=cid, status="all", limit=20), "data", []) or []:
+                if _sget(sub, "status") in ("active", "trialing", "past_due"):
+                    return True
+    except Exception as e:
+        logger.warning(f"Could not check Stripe subscriptions for {user.get('user_id')}: {e}")
+    return False
+
 @api_router.post("/subscription/checkout")
 async def create_subscription_checkout(request: Request):
     user = await get_current_user(request)
@@ -14430,6 +14453,10 @@ async def create_subscription_checkout(request: Request):
     # (checkout would create a new Stripe customer and orphan the failing one).
     if user.get("subscription_status") == "past_due" and user.get("stripe_customer_id"):
         raise HTTPException(status_code=409, detail="past_due|Your last payment didn't go through. Update your card to keep your plan.")
+    # One paid plan per account, in either direction (Parent then Teacher, Teacher then Parent):
+    # a second checkout would bill them twice and orphan the first subscription.
+    if _has_live_stripe_subscription(user):
+        raise HTTPException(status_code=409, detail="already_subscribed|You already have an active plan. Use Manage billing to change or cancel it.")
     price_id = STRIPE_PRICE_IDS.get(plan, "")
     if not price_id:
         raise HTTPException(status_code=500, detail=f"Stripe price for '{plan}' is not configured yet")
