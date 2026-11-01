@@ -14342,6 +14342,28 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
     return StreamingResponse(buffer, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="classroom-overview-{period_label_en.replace(" ","-").replace(chr(8211),"to")}.pdf"'})
 
+def _next_payment_info(subs):
+    """{date (ISO), amount (minor units), currency, interval} from the first live Stripe
+    subscription, or None. current_period_end moved onto the items in newer API versions,
+    so read both places."""
+    for sub in subs or []:
+        try:
+            item = _sget(_sget(sub, "items"), "data")[0]
+            price = _sget(item, "price")
+            end = _sget(sub, "current_period_end") or _sget(item, "current_period_end")
+            amount = _sget(price, "unit_amount")
+            if not end or amount is None:
+                continue
+            return {
+                "date": datetime.fromtimestamp(int(end), tz=timezone.utc).isoformat(),
+                "amount": int(amount),
+                "currency": (_sget(price, "currency") or "usd").lower(),
+                "interval": _sget(_sget(price, "recurring"), "interval") or "month",
+            }
+        except Exception as e:
+            logger.warning(f"next_payment parse failed: {e}")
+    return None
+
 @api_router.get("/subscription/status")
 async def get_subscription_status(request: Request):
     user = await get_current_user(request)
@@ -14352,6 +14374,7 @@ async def get_subscription_status(request: Request):
     # Stripe (see _active_stripe_subs's comment) - fetched live here so Settings can show
     # "ends on X, won't renew" instead of "renews on X" once someone's cancelled.
     cancel_at_period_end = False
+    active_subs = []
     if user.get("subscription_status") == "active":
         active_subs = _active_stripe_subs(user.get("stripe_customer_id"))
         cancel_at_period_end = any(_sget(s, "cancel_at_period_end") for s in active_subs)
@@ -14364,7 +14387,13 @@ async def get_subscription_status(request: Request):
         (user.get("role") == "teacher" and _teacher_is_school_covered(user)) or
         (user.get("role") == "parent" and _parent_is_school_covered(user))
     )
+    # Real next-payment details straight from Stripe (date, amount, interval) so the app
+    # can say "Renews on 1 December 2026 - $4.99 per month" instead of a constant.
+    next_payment = None
+    if user.get("subscription_status") == "active" and not school_covered:
+        next_payment = _next_payment_info(active_subs)
     return {
+        "next_payment": next_payment,
         "is_active": is_active,
         "status": user.get("subscription_status", "none"),
         "expires_at": user.get("subscription_expires_at"),
