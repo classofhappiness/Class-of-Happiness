@@ -12678,6 +12678,13 @@ PUSH_SUPPORT_RESPONSE_TITLE_WITHOUT_WHO = {
     "ar": "تحديث طلب الدعم", "ru": "Обновление запроса поддержки",
 }
 
+PUSH_SUPPORT_DECISION_WORD = {
+    "YES": {"en": "On the way", "pt": "A caminho", "es": "En camino", "fr": "En route", "de": "Unterwegs", "it": "In arrivo",
+            "hi": "रास्ते में", "zh": "正在赶来", "ar": "في الطريق", "ru": "Уже в пути"},
+    "NO": {"en": "Not available", "pt": "Indisponível", "es": "No disponible", "fr": "Indisponible", "de": "Nicht verfügbar", "it": "Non disponibile",
+           "hi": "उपलब्ध नहीं", "zh": "暂时无法前往", "ar": "غير متاح", "ru": "Недоступно"},
+}
+
 PUSH_SUPPORT_CANCELLED_TITLE = {
     "en": "Support request cancelled", "pt": "Pedido de apoio cancelado", "es": "Solicitud de apoyo cancelada",
     "fr": "Demande de soutien annulée", "de": "Unterstützungsanfrage storniert", "it": "Richiesta di supporto annullata",
@@ -22569,15 +22576,26 @@ async def respond_support_request(request_id: str, request: Request):
         raise HTTPException(status_code=403, detail="School admin access required")
     _require_feature_access(user, "support_requests", "Support Requests")
     body = await request.json()
-    response_text = (body.get("response") or "").strip()
-    if not response_text:
-        raise HTTPException(status_code=400, detail="response is required")
+    # A reply is Yes or No plus an optional comment (Nov 1). Older app/portal builds sent the bare word YES/NO in "response";
+    # that is still read as the decision, but free text on its own is refused.
+    decision = str(body.get("decision") or "").strip().upper()
+    comment = (body.get("comment") or "").strip()
+    if not decision:
+        legacy = str(body.get("response") or "").strip().upper()
+        if legacy in ("YES", "NO"):
+            decision = legacy
+    if decision not in ("YES", "NO"):
+        raise HTTPException(status_code=400, detail="decision must be YES or NO (a comment is optional)")
+    comment = comment[:500]
+    # admin_response keeps the comment, or the decision word when there is none, so every "has a reply" check
+    # (Got it, older app builds) keeps working; admin_decision is the source of truth for the wording.
+    response_text = comment or decision
     existing = supabase.table("support_requests").select("*").eq("id", request_id).eq("school_admin_id", user["user_id"]).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Support request not found")
     row = existing.data[0]
     now_iso = datetime.now(timezone.utc).isoformat()
-    updates = {"admin_response": response_text, "responded_at": now_iso, "status": "RESOLVED"}
+    updates = {"admin_response": response_text, "admin_decision": decision, "responded_at": now_iso, "status": "RESOLVED"}
     if not row.get("acknowledged_at"):
         updates["acknowledged_at"] = now_iso
     result = supabase.table("support_requests").update(updates).eq("id", request_id).execute()
@@ -22605,7 +22623,7 @@ async def respond_support_request(request_id: str, request: Request):
     text_by_lang = {
         lang: {
             "title": PUSH_SUPPORT_RESPONSE_TITLE_WITH_WHO[lang].format(who=who) if who else PUSH_SUPPORT_RESPONSE_TITLE_WITHOUT_WHO[lang],
-            "body": response_text,
+            "body": PUSH_SUPPORT_DECISION_WORD[decision][lang] + (f": {comment}" if comment else ""),
         }
         for lang in PUSH_NOTIFICATION_LANGUAGES
     }

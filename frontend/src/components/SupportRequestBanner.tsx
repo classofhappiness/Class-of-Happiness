@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
-  SupportRequest, formatSupportRequestStatus, describeSupportRequest, formatSentLine,
+  SupportRequest, formatSupportRequestStatus, supportReplyDecision, supportReplyComment, describeSupportRequest, formatSentLine,
   supportRequestsApi,
 } from '../utils/api';
 import { useSupportRequestsList } from '../utils/supportRequestsPoller';
@@ -210,7 +210,8 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel, o
           {isReplied(request) && (
             <>
               <Text style={styles.replyLabel}>{t('support_reply_from_admin') || 'Reply from your school admin'}</Text>
-              <Text style={styles.replyText}>{request.admin_response}</Text>
+              {supportReplyDecision(request) ? <Text style={[styles.replyText, { color: display.color }]}>{display.text}</Text> : null}
+              {supportReplyComment(request) ? <Text style={styles.replyComment}>{supportReplyComment(request)}</Text> : null}
               <View style={styles.actionRow}>
                 <TouchableOpacity style={styles.arrivedBtn} disabled={!!busy} onPress={onDismiss}>
                   {busy === 'dismissing' ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>{t('got_it') || 'Got it'}</Text>}
@@ -256,7 +257,8 @@ const styles = StyleSheet.create({
   detailTitle: { fontSize: 14, fontWeight: '700', color: '#333', marginTop: 8 },
   detailLine: { fontSize: 13, color: '#555', marginTop: 2 },
   detailMeta: { fontSize: 11, color: '#999', marginTop: 4 },
-  replyLabel: { fontSize: 11, fontWeight: '700', color: '#2E7D32', marginTop: 10 },
+  replyLabel: { fontSize: 11, fontWeight: '700', color: '#666', marginTop: 10 },
+  replyComment: { fontSize: 14, color: '#333', marginTop: 4 },
   replyText: { fontSize: 15, fontWeight: '600', color: '#1A1A2E', marginTop: 2 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   arrivedBtn: {

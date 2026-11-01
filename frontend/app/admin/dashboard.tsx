@@ -15,7 +15,7 @@ import { SecureField } from '../../src/components/SecureField';
 import { PinConfirmModal } from '../../src/components/PinConfirmModal';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
-import { supportRequestsApi, SupportRequest } from '../../src/utils/api';
+import { supportRequestsApi, SupportRequest, supportReplyDecision, supportReplyComment } from '../../src/utils/api';
 import { useSupportRequestsList, refreshSupportRequestsNow } from '../../src/utils/supportRequestsPoller';
 import { registerForPushNotifications, registerForPushNotificationsDetailed, hasNotificationPermission, IS_EXPO_GO } from '../../src/utils/notifications';
 import { useDeviceNotificationsEnabled } from '../../src/utils/useDeviceNotifications';
@@ -3045,7 +3045,7 @@ function srTimeAgo(iso: string | null, t: (k: string) => string): string {
   return `${hh}:${mm} · ${ago}`;
 }
 
-function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck: (id: string) => void; onRespond: (id: string, msg: string) => void }) {
+function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck: (id: string) => void; onRespond: (id: string, decision: 'YES' | 'NO', comment: string) => void }) {
   const { t } = useApp();
   const [msg, setMsg] = useState('');
   const isOpen = SR_OPEN_STATUSES.includes(r.status);
@@ -3055,12 +3055,16 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
   if (r.target_text) metaParts.push(r.target_text);
   if (r.classroom_name && r.student_name) metaParts.push(r.classroom_name);
   metaParts.push((t('support_banner_admin_from') || 'from {name}').replace('{name}', r.requested_by_name || (t('support_banner_admin_a_teacher') || 'a teacher')));
+  const replyDecision = supportReplyDecision(r);
+  const replyComment = supportReplyComment(r);
   const statusMeta: Record<string, { label: string; bg: string; fg: string }> = {
     PENDING: { label: t('pending') || 'Pending', bg: '#FFF3E0', fg: '#E65100' },
     ACKNOWLEDGED: { label: t('support_banner_acknowledged') || 'Acknowledged', bg: '#E8EAF6', fg: '#3949AB' },
     CANCELLED: { label: t('support_banner_status_cancelled') || 'Cancelled', bg: '#F0F0F0', fg: '#757575' },
     SUPERSEDED: { label: t('support_banner_superseded') || 'Superseded', bg: '#F0F0F0', fg: '#757575' },
-    RESOLVED: { label: (t('support_banner_resolved_with') || 'Resolved: {response}').replace('{response}', r.admin_response || ''), bg: '#E8F5E9', fg: '#2E7D32' },
+    RESOLVED: replyDecision === 'YES' ? { label: t('support_banner_status_on_the_way') || 'On the way', bg: '#E8F5E9', fg: '#2E7D32' }
+      : replyDecision === 'NO' ? { label: t('support_banner_status_not_available') || 'Not available', bg: '#FFF3E0', fg: '#E65100' }
+      : { label: (t('support_banner_resolved_with') || 'Resolved: {response}').replace('{response}', r.admin_response || ''), bg: '#F0F0F0', fg: '#555' },
   };
   const badge = statusMeta[r.status] || statusMeta.RESOLVED;
   const terminalIso = r.status === 'RESOLVED' ? r.responded_at : r.status === 'CANCELLED' ? r.cancelled_at : r.status === 'SUPERSEDED' ? r.superseded_at : null;
@@ -3078,6 +3082,7 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
           <Text style={srS.meta}>{metaParts.join(' · ')}</Text>
           <Text style={srS.time}>{(t('support_banner_admin_sent') || 'Sent {when}').replace('{when}', srTimeAgo(r.created_at, t))}</Text>
           {terminalIso && <Text style={srS.time}>{terminalLabel} {srTimeAgo(terminalIso, t)}</Text>}
+          {r.status === 'RESOLVED' && replyDecision && replyComment ? <Text style={srS.time}>{(t('support_admin_your_comment') || 'Your comment') + ': ' + replyComment}</Text> : null}
         </View>
         <View style={[srS.badge, { backgroundColor: badge.bg }]}>
           <Text style={[srS.badgeText, { color: badge.fg }]} numberOfLines={2}>{badge.label}</Text>
@@ -3090,22 +3095,19 @@ function SupportRequestCard({ r, onAck, onRespond }: { r: SupportRequest; onAck:
               <Text style={[srS.actionBtnText, { color: '#555' }]}>{t('acknowledge') || 'Acknowledge'}</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#4CAF73' }]} onPress={() => onRespond(r.id, 'YES')}>
-            <Text style={srS.actionBtnText}>{t('support_banner_yes') || 'Yes'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#E05252' }]} onPress={() => onRespond(r.id, 'NO')}>
-            <Text style={srS.actionBtnText}>{t('support_banner_no') || 'No'}</Text>
-          </TouchableOpacity>
           <TextInput
             style={srS.msgInput}
-            placeholder={t('custom_message_placeholder') || 'Custom message…'}
+            placeholder={t('support_reply_comment_placeholder') || 'Add a comment (optional)'}
             placeholderTextColor="#AAA"
             value={msg}
             onChangeText={setMsg}
-            onSubmitEditing={() => { if (msg.trim()) { onRespond(r.id, msg.trim()); setMsg(''); } }}
+            maxLength={500}
           />
-          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: INDIGO }]} onPress={() => { if (msg.trim()) { onRespond(r.id, msg.trim()); setMsg(''); } }}>
-            <Text style={srS.actionBtnText}>{t('send') || 'Send'}</Text>
+          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#4CAF73' }]} onPress={() => { onRespond(r.id, 'YES', msg.trim()); setMsg(''); }}>
+            <Text style={srS.actionBtnText}>{t('support_banner_yes') || 'Yes'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[srS.actionBtn, { backgroundColor: '#E05252' }]} onPress={() => { onRespond(r.id, 'NO', msg.trim()); setMsg(''); }}>
+            <Text style={srS.actionBtnText}>{t('support_banner_no') || 'No'}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -3164,8 +3166,8 @@ function SupportRequestsManager({ status, onStatusChange }: { status: SupportSta
   const onAck = async (id: string) => {
     try { await supportRequestsApi.acknowledge(id); dismissIncidentAlert(id); refreshSupportRequestsNow(); } catch { Alert.alert(t('error') || 'Error', t('could_not_acknowledge') || 'Could not acknowledge.'); }
   };
-  const onRespond = async (id: string, response: string) => {
-    try { await supportRequestsApi.respond(id, response); dismissIncidentAlert(id); refreshSupportRequestsNow(); } catch { Alert.alert(t('error') || 'Error', t('could_not_respond') || 'Could not respond.'); }
+  const onRespond = async (id: string, decision: 'YES' | 'NO', comment: string) => {
+    try { await supportRequestsApi.respond(id, decision, comment); dismissIncidentAlert(id); refreshSupportRequestsNow(); } catch { Alert.alert(t('error') || 'Error', t('could_not_respond') || 'Could not respond.'); }
   };
 
   const hasHistory = list.length > 0;

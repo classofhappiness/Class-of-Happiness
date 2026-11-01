@@ -1244,6 +1244,7 @@ export interface SupportRequest {
   // evidence-preserving, never deleted.
   status: 'PENDING' | 'ACKNOWLEDGED' | 'RESOLVED' | 'CANCELLED' | 'SUPERSEDED';
   admin_response: string | null;
+  admin_decision?: 'YES' | 'NO' | null; // the admin's Yes/No; admin_response is then the comment (or the same word when none)
   responded_at: string | null;
   acknowledged_at: string | null;
   teacher_dismissed_at?: string | null; // the teacher tapped "Got it" on the admin's reply
@@ -1288,8 +1289,8 @@ export const supportRequestsApi = {
   acknowledge: (id: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}/acknowledge`, { method: 'POST' }),
 
-  respond: (id: string, response: string): Promise<SupportRequest> =>
-    apiRequest(`/support-requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) }),
+  respond: (id: string, decision: 'YES' | 'NO', comment?: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ decision, comment: (comment || '').trim() || undefined }) }),
 
   dismissReply: (id: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}/dismiss-reply`, { method: 'POST' }),
@@ -1391,6 +1392,8 @@ export const SUPPORT_REQUEST_STATUS_COLOURS = {
   pendingYellow: EMOTION_COLOURS.yellow,
   pendingRed: EMOTION_COLOURS.red,
   resolvedGreen: EMOTION_COLOURS.green,
+  seenNeutral: '#9E9E9E', // "Seen": the admin has looked, nothing is promised
+  notAvailable: '#E67E22', // admin replied No
 } as const;
 
 export interface SupportRequestStatusDisplay {
@@ -1409,7 +1412,7 @@ function elapsedSuffix(createdAt: string, t?: SrT): string {
 }
 
 export function formatSupportRequestStatus(r: SupportRequest, t?: SrT): SupportRequestStatusDisplay {
-  const { pendingYellow, pendingRed, resolvedGreen } = SUPPORT_REQUEST_STATUS_COLOURS;
+  const { pendingYellow, pendingRed, resolvedGreen, seenNeutral, notAvailable } = SUPPORT_REQUEST_STATUS_COLOURS;
   if (r.status === 'PENDING') {
     const color = r.is_incident ? pendingRed : pendingYellow;
     const elapsed = elapsedSuffix(r.created_at, t);
@@ -1421,8 +1424,8 @@ export function formatSupportRequestStatus(r: SupportRequest, t?: SrT): SupportR
     return { text: `${r.is_incident ? srTr(t, 'support_banner_status_sent_waiting_incident', '🚨 Sent - waiting') : srTr(t, 'support_banner_status_sent_waiting', 'Sent - waiting')}${elapsed}`, color, pulse: true };
   }
   if (r.status === 'ACKNOWLEDGED') {
-    const seenOnly = r.request_type === 'STAFF_MEMBER' || r.request_type === 'BACK_ON_TRACK';
-    return { text: seenOnly ? srTr(t, 'support_banner_status_seen', 'Seen') : srTr(t, 'support_banner_status_seen_on_the_way', 'Seen - on the way'), color: resolvedGreen, pulse: false };
+    // Nov 1: "Seen" only, in a neutral colour - an acknowledge promises nothing; "On the way" only comes from a Yes reply.
+    return { text: srTr(t, 'support_banner_status_seen', 'Seen'), color: seenNeutral, pulse: false };
   }
   if (r.status === 'CANCELLED') {
     return { text: srTr(t, 'support_banner_status_cancelled', 'Cancelled'), color: resolvedGreen, pulse: false };
@@ -1439,10 +1442,26 @@ export function formatSupportRequestStatus(r: SupportRequest, t?: SrT): SupportR
   if (r.arrived_at) {
     return { text: srTr(t, 'support_banner_status_help_arrived', 'Help has arrived 💚'), color: resolvedGreen, pulse: false };
   }
-  const resp = (r.admin_response || '').trim();
-  const upper = resp.toUpperCase();
-  const text = upper === 'YES' ? srTr(t, 'support_banner_status_sorted', 'Sorted ✓') : upper === 'NO' ? srTr(t, 'support_banner_status_cant_right_now', "Can't right now") : (resp || srTr(t, 'resolved', 'Resolved'));
-  return { text, color: resolvedGreen, pulse: false };
+  const decision = supportReplyDecision(r);
+  if (decision === 'YES') return { text: srTr(t, 'support_banner_status_on_the_way', 'On the way'), color: resolvedGreen, pulse: false };
+  if (decision === 'NO') return { text: srTr(t, 'support_banner_status_not_available', 'Not available'), color: notAvailable, pulse: false };
+  // Old-style reply (free text written before Yes/No + comment existed): show it as written, neutral.
+  return { text: (r.admin_response || '').trim() || srTr(t, 'resolved', 'Resolved'), color: seenNeutral, pulse: false };
+}
+
+/** The admin's Yes/No on a request. Old rows have no admin_decision: a stored YES/NO word still counts, other text is null. */
+export function supportReplyDecision(r: Pick<SupportRequest, 'admin_decision' | 'admin_response'>): 'YES' | 'NO' | null {
+  if (r.admin_decision === 'YES' || r.admin_decision === 'NO') return r.admin_decision;
+  const word = (r.admin_response || '').trim().toUpperCase();
+  return word === 'YES' || word === 'NO' ? word : null;
+}
+
+/** The admin's comment, without the decision word that stands in for it when none was written. */
+export function supportReplyComment(r: Pick<SupportRequest, 'admin_decision' | 'admin_response'>): string {
+  const text = (r.admin_response || '').trim();
+  const d = supportReplyDecision(r);
+  if (d && text.toUpperCase() === d) return '';
+  return text;
 }
 
 
