@@ -14396,7 +14396,7 @@ async def create_subscription_checkout(request: Request):
     try:
         session = stripe_lib.checkout.Session.create(
             mode="subscription",
-            payment_method_types=["card"],
+            # No payment_method_types: current Stripe API versions refuse it (methods are set in the Dashboard; card is on).
             line_items=[{"price": price_id, "quantity": 1}],
             customer_email=user.get("email"),
             client_reference_id=user["user_id"],
