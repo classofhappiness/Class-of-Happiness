@@ -1424,8 +1424,9 @@ export function formatSupportRequestStatus(r: SupportRequest, t?: SrT): SupportR
     return { text: `${r.is_incident ? srTr(t, 'support_banner_status_sent_waiting_incident', '🚨 Sent - waiting') : srTr(t, 'support_banner_status_sent_waiting', 'Sent - waiting')}${elapsed}`, color, pulse: true };
   }
   if (r.status === 'ACKNOWLEDGED') {
-    // Nov 1: "Seen" only, in a neutral colour - an acknowledge promises nothing; "On the way" only comes from a Yes reply.
-    return { text: srTr(t, 'support_banner_status_seen', 'Seen'), color: seenNeutral, pulse: false };
+    // Nov 1: "Seen" only, in the request's own original light colour (amber, red for an incident) - an acknowledge promises
+    // nothing and is not a good-news state; "On the way" (green) only ever comes from a Yes reply.
+    return { text: srTr(t, 'support_banner_status_seen', 'Seen'), color: r.is_incident ? pendingRed : pendingYellow, pulse: false };
   }
   if (r.status === 'CANCELLED') {
     return { text: srTr(t, 'support_banner_status_cancelled', 'Cancelled'), color: resolvedGreen, pulse: false };
