@@ -2263,5 +2263,11 @@
   "got_it": "Понятно",
   "verify_spam_hint": "Это может занять несколько минут. Проверьте папку «Спам» или «Нежелательная почта».",
   "verify_code_resent": "Мы отправили код ещё раз.",
-  "resend_in_seconds": "Отправить снова через {seconds} с"
+  "resend_in_seconds": "Отправить снова через {seconds} с",
+  "renews_on_line": "Продление {date} - {amount} за {interval}",
+  "renews_on_date": "Продление {date}",
+  "ends_on_line": "Заканчивается {date}. До этого времени доступ сохраняется.",
+  "manage_billing": "Управление оплатой",
+  "billing_interval_month": "месяц",
+  "billing_interval_year": "год"
 }

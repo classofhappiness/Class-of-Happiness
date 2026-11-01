@@ -3,7 +3,7 @@
 // Digits: Western digits for every language including Arabic (matches the rest of the app).
 // Clock: keeps each language's own default convention, as the app already did via Intl without an hour12 override:
 // en/hi/ar 12-hour with am/pm marker, the others 24-hour. `force24` keeps screens that always forced 24-hour (hour12:false).
-import { monthShort } from './monthLabel';
+import { monthShort, monthName } from './monthLabel';
 
 type Style = 'short' | 'long';
 
@@ -96,4 +96,26 @@ export function formatNumericDateTime(input: Date | string | number, language: s
   const d = new Date(input);
   if (!valid(d)) return '';
   return `${formatNumericDate(d, language)} ${formatTime(d, language)}`;
+}
+
+// Russian needs the genitive after a day number ("1 декабря"); monthName is the nominative heading form.
+const RU_GENITIVE = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+/** Full date with the month spelled out, never numeric: "1 December 2026" / "1. Dezember 2026" / "1 de dezembro de 2026" / "2026年12月1日". */
+export function formatLongDate(input: Date | string | number, language: string): string {
+  const d = new Date(input);
+  if (!valid(d)) return '';
+  const l = lang(language);
+  const day = d.getDate(), m = d.getMonth() + 1, y = d.getFullYear();
+  const mon = monthName(m, l);
+  switch (l) {
+    case 'zh': return `${y}年${mon}${day}日`;
+    case 'de': return `${day}. ${mon} ${y}`;
+    case 'pt':
+    case 'es': return `${day} de ${mon.toLowerCase()} de ${y}`;
+    case 'fr':
+    case 'it': return `${day} ${mon.toLowerCase()} ${y}`;
+    case 'ru': return `${day} ${RU_GENITIVE[m - 1]} ${y}`;
+    default: return `${day} ${mon} ${y}`; // en, hi, ar
+  }
 }

@@ -7,7 +7,8 @@ import { useRouter, useNavigation } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
-import { formatNumericDate } from '../src/utils/dateLabel';
+import { formatLongDate } from '../src/utils/dateLabel';
+import { renewsLine, endsLine, NextPayment } from '../src/utils/billingLines';
 import { translationsApi, subscriptionApi, authApiExtended } from '../src/utils/api';
 import { trialEndsAt } from '../src/utils/trialEnd';
 import { appVersionLabel } from '../src/utils/appVersion';
@@ -76,11 +77,6 @@ function subscriptionStatusLabel(user: any, t: (k: string) => string): string {
   return (t('subscription_active_label') || '{plan} Subscription Active').replace('{plan}', label);
 }
 
-function renewalCountdownLabel(expiresAtIso: string, t: (k: string) => string): string {
-  const daysLeft = Math.max(0, Math.ceil((new Date(expiresAtIso).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-  return daysLeft === 1 ? (t('renews_in_one_day') || 'Renews in 1 day') : (t('renews_in_days') || 'Renews in {days} days').replace('{days}', String(daysLeft));
-}
-
 // Oct 31: the end date comes from the one shared reader (src/utils/trialEnd.ts), which prefers
 // subscription_expires_at - the single field the server writes for every trial.
 function trialDaysLeftLabel(user: any, t: (k: string) => string): string {
@@ -131,6 +127,7 @@ export default function SettingsScreen() {
   // `user` object from /auth/me - fetched separately here, only for active subscribers.
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
+  const [nextPayment, setNextPayment] = useState<NextPayment>(null);
   // Real fix Aug 26 (item 4): a school-covered account's Cancel button was guaranteed to
   // fail - they show "Active" correctly (their school pays), but there's no personal
   // subscription to cancel. school_covered comes from the same GET /subscription/status
@@ -149,6 +146,7 @@ export default function SettingsScreen() {
     if (user?.role !== 'teacher' && user?.role !== 'parent') return;
     subscriptionApi.getStatus().then(d => {
       setCancelAtPeriodEnd(!!d.cancel_at_period_end);
+      setNextPayment(d.next_payment || null);
       setSchoolCovered(!!d.school_covered);
       setServerIsActive(!!d.is_active);
     }).catch(() => {});
@@ -157,7 +155,7 @@ export default function SettingsScreen() {
   const handleCancelSubscription = () => {
     Alert.alert(
       t('cancel_subscription_title') || 'Cancel subscription?',
-      (t('cancel_subscription_desc') || "You'll keep full access until {date}, then your account moves to the free plan. All your existing progress, creatures and data stay exactly as they are.").replace('{date}', user?.subscription_expires_at ? formatNumericDate(user.subscription_expires_at, language) : ''),
+      (t('cancel_subscription_desc') || "You'll keep full access until {date}, then your account moves to the free plan. All your existing progress, creatures and data stay exactly as they are.").replace('{date}', user?.subscription_expires_at ? formatLongDate(user.subscription_expires_at, language) : ''),
       [
         { text: t('keep_subscription') || 'Keep Subscription', style: 'cancel' },
         {
@@ -714,8 +712,8 @@ export default function SettingsScreen() {
               {user?.subscription_status === 'active' && user?.subscription_expires_at && (
                 <Text style={styles.settingSubValue}>
                   {cancelAtPeriodEnd
-                    ? (t('cancels_on_label') || 'Cancels on {date}').replace('{date}', formatNumericDate(user.subscription_expires_at, language))
-                    : renewalCountdownLabel(user.subscription_expires_at, t)}
+                    ? endsLine(user.subscription_expires_at, language, t)
+                    : renewsLine(nextPayment, user.subscription_expires_at, language, t)}
                 </Text>
               )}
             </View>

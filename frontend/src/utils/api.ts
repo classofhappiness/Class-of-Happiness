@@ -276,7 +276,7 @@ export const subscriptionApi = {
   getParentCoverage: (): Promise<{ covered: boolean }> =>
     apiRequest('/parent/coverage-status'),
 
-  getStatus: (): Promise<{ is_active: boolean; status: string; expires_at?: string; trial_started_at?: string; cancel_at_period_end: boolean; school_covered: boolean; past_due?: boolean; in_grace?: boolean; grace_ends_at?: string | null }> =>
+  getStatus: (): Promise<{ is_active: boolean; status: string; expires_at?: string; trial_started_at?: string; cancel_at_period_end: boolean; school_covered: boolean; past_due?: boolean; in_grace?: boolean; grace_ends_at?: string | null; next_payment?: { date: string; amount: number; currency: string; interval: string } | null }> =>
     apiRequest('/subscription/status'),
 
   createBillingPortal: (returnUrl: string): Promise<{ url: string }> =>

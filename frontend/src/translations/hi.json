@@ -2263,5 +2263,11 @@
   "got_it": "समझ गया",
   "verify_spam_hint": "इसमें कुछ मिनट लग सकते हैं। अपना जंक या स्पैम फ़ोल्डर देखें।",
   "verify_code_resent": "हमने कोड फिर से भेज दिया है।",
-  "resend_in_seconds": "{seconds} सेकंड में फिर भेजें"
+  "resend_in_seconds": "{seconds} सेकंड में फिर भेजें",
+  "renews_on_line": "{date} को नवीनीकरण - {amount} प्रति {interval}",
+  "renews_on_date": "{date} को नवीनीकरण",
+  "ends_on_line": "{date} को समाप्त होगा। तब तक आपकी पहुँच बनी रहेगी।",
+  "manage_billing": "बिलिंग प्रबंधित करें",
+  "billing_interval_month": "माह",
+  "billing_interval_year": "वर्ष"
 }

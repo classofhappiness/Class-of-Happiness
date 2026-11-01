@@ -11,7 +11,7 @@ import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
 import { formatMonthYear as formatMonthYearLabel, monthShort as monthShortLabel } from '../../src/utils/monthLabel';
-import { formatShortDate, formatTime, formatNumericDate } from '../../src/utils/dateLabel';
+import { formatShortDate, formatTime, formatLongDate } from '../../src/utils/dateLabel';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -395,7 +395,7 @@ export default function MyWellbeingScreen() {
       '',
       `👤 ${memberName}`,
       `📅 ${(t('export_period_line') || 'Period: Last {days} days').replace('{days}', String(range))}`,
-      `🗓  ${(t('export_exported_line') || 'Exported: {date}').replace('{date}', formatNumericDate(new Date(), language))}`,
+      `🗓  ${(t('export_exported_line') || 'Exported: {date}').replace('{date}', formatLongDate(new Date(), language))}`,
       `📊 ${(t('export_total_checkins_line') || 'Total check-ins: {total}').replace('{total}', String(total))}`,
       '',
       `─── ${t('export_emotion_summary') || 'Emotion Summary'} ───────────────────`,

@@ -2263,5 +2263,11 @@
   "got_it": "知道了",
   "verify_spam_hint": "可能需要几分钟。请检查垃圾邮件文件夹。",
   "verify_code_resent": "我们已重新发送验证码。",
-  "resend_in_seconds": "{seconds} 秒后重新发送"
+  "resend_in_seconds": "{seconds} 秒后重新发送",
+  "renews_on_line": "将于{date}续订 - 每{interval}{amount}",
+  "renews_on_date": "将于{date}续订",
+  "ends_on_line": "将于{date}结束。在此之前您仍可使用。",
+  "manage_billing": "管理账单",
+  "billing_interval_month": "月",
+  "billing_interval_year": "年"
 }

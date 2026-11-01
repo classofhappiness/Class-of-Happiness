@@ -2277,5 +2277,11 @@
   "got_it": "Got it",
   "verify_spam_hint": "It can take a few minutes. Check your Junk or Spam folder.",
   "verify_code_resent": "We have sent the code again.",
-  "resend_in_seconds": "Resend in {seconds}s"
+  "resend_in_seconds": "Resend in {seconds}s",
+  "renews_on_line": "Renews on {date} - {amount} per {interval}",
+  "renews_on_date": "Renews on {date}",
+  "ends_on_line": "Ends on {date}. You keep access until then.",
+  "manage_billing": "Manage billing",
+  "billing_interval_month": "month",
+  "billing_interval_year": "year"
 }

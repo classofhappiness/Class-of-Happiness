@@ -2420,5 +2420,11 @@
   "got_it": "Compris",
   "verify_spam_hint": "Cela peut prendre quelques minutes. Vérifiez votre dossier courrier indésirable ou spam.",
   "verify_code_resent": "Nous avons renvoyé le code.",
-  "resend_in_seconds": "Renvoyer dans {seconds} s"
+  "resend_in_seconds": "Renvoyer dans {seconds} s",
+  "renews_on_line": "Renouvellement le {date} - {amount} par {interval}",
+  "renews_on_date": "Renouvellement le {date}",
+  "ends_on_line": "Se termine le {date}. Vous gardez l'accès jusque-là.",
+  "manage_billing": "Gérer la facturation",
+  "billing_interval_month": "mois",
+  "billing_interval_year": "an"
 }

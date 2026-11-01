@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { resourcesApi, teacherResourcesApi, Resource, TeacherResource, TeacherResourceRating } from '../../src/utils/api';
 import { useApp } from '../../src/context/AppContext';
-import { formatNumericDate } from '../../src/utils/dateLabel';
+import { formatLongDate } from '../../src/utils/dateLabel';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
@@ -617,7 +617,7 @@ export default function ResourcesScreen() {
                               <MaterialIcons key={star} name={star <= rating.rating ? 'star' : 'star-border'} size={16} color="#4CAF50" />
                             ))}
                           </View>
-                          <Text style={styles.reviewDate}>{formatNumericDate(rating.created_at, language)}</Text>
+                          <Text style={styles.reviewDate}>{formatLongDate(rating.created_at, language)}</Text>
                         </View>
                         {rating.comment && <Text style={styles.reviewComment}>{rating.comment}</Text>}
                       </View>

@@ -2263,5 +2263,11 @@
   "got_it": "حسنًا",
   "verify_spam_hint": "قد يستغرق الأمر بضع دقائق. تحقق من مجلد البريد غير الهام أو الرسائل المزعجة.",
   "verify_code_resent": "لقد أرسلنا الرمز مرة أخرى.",
-  "resend_in_seconds": "إعادة الإرسال خلال {seconds} ث"
+  "resend_in_seconds": "إعادة الإرسال خلال {seconds} ث",
+  "renews_on_line": "يتجدد في {date} - {amount} لكل {interval}",
+  "renews_on_date": "يتجدد في {date}",
+  "ends_on_line": "ينتهي في {date}. يبقى وصولك مفتوحًا حتى ذلك الحين.",
+  "manage_billing": "إدارة الفوترة",
+  "billing_interval_month": "شهر",
+  "billing_interval_year": "سنة"
 }

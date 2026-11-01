@@ -2411,5 +2411,11 @@
   "got_it": "Entendido",
   "verify_spam_hint": "Puede tardar unos minutos. Revisa la carpeta de correo no deseado o spam.",
   "verify_code_resent": "Hemos enviado el código de nuevo.",
-  "resend_in_seconds": "Reenviar en {seconds} s"
+  "resend_in_seconds": "Reenviar en {seconds} s",
+  "renews_on_line": "Se renueva el {date} - {amount} por {interval}",
+  "renews_on_date": "Se renueva el {date}",
+  "ends_on_line": "Termina el {date}. Mantienes el acceso hasta entonces.",
+  "manage_billing": "Gestionar facturación",
+  "billing_interval_month": "mes",
+  "billing_interval_year": "año"
 }

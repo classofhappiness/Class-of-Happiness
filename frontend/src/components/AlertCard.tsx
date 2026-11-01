@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { formatTime, formatNumericDate } from '../utils/dateLabel';
+import { formatTime, formatShortDate } from '../utils/dateLabel';
 import { EMOTION_COLOURS } from '../constants/emotionColours';
 import { resolveStrategyName, strategyLabel } from '../utils/resolveStrategyName';
 import { translateSupportAlertMessage } from '../utils/api';
@@ -81,7 +81,7 @@ export const AlertCard = ({ alert, onResolve, selected, selectMode, onLongPress,
               </View>
             </View>
             <Text style={{ fontSize:12, color:'#999', marginBottom:6 }}>
-              {getZoneLabel(alert.zone, t)} · {formatTime(alert.created_at, language, { twoDigitHour: true })} {formatNumericDate(alert.created_at, language)}
+              {getZoneLabel(alert.zone, t)} · {formatTime(alert.created_at, language, { twoDigitHour: true })} {formatShortDate(alert.created_at, language, { year: true })}
             </Text>
             {(alert.strategy_id || alert.strategy_name) ? (
               <Text style={{ fontSize:13, color:'#555', marginBottom:6 }}>

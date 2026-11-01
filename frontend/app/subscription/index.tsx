@@ -11,6 +11,7 @@ import { ParentGate } from '../../src/components/ParentGate';
 import { trialEndsAt } from '../../src/utils/trialEnd';
 import { openBillingPortal } from '../../src/utils/billingPortal';
 import { formatShortDate } from '../../src/utils/dateLabel';
+import { renewsLine, endsLine, NextPayment } from '../../src/utils/billingLines';
 
 // Real fix Aug 18: annual billing isn't offered yet — neither the backend's
 // SUBSCRIPTION_PLANS nor Stripe have annual prices configured, and the old $39.99/$59.99
@@ -78,6 +79,19 @@ export default function SubscriptionScreen() {
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [enquirySubmitting, setEnquirySubmitting] = useState(false);
   const [enquirySent, setEnquirySent] = useState(false);
+
+  // Real next-payment date/amount and the cancel state come from Stripe via the backend.
+  const [nextPayment, setNextPayment] = useState<NextPayment>(null);
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  const [schoolCovered, setSchoolCovered] = useState(false);
+  useEffect(() => {
+    if (user?.role !== 'teacher' && user?.role !== 'parent') return;
+    subscriptionApi.getStatus().then(d => {
+      setNextPayment(d.next_payment || null);
+      setCancelAtPeriodEnd(!!d.cancel_at_period_end);
+      setSchoolCovered(!!d.school_covered);
+    }).catch(() => {});
+  }, [user?.role, user?.subscription_status, user?.subscription_expires_at]);
 
   useEffect(() => {
     subscriptionApi.getPlans().then(d => setTrialDays(d.trial_days || 14)).catch(() => {});
@@ -275,13 +289,23 @@ export default function SubscriptionScreen() {
             {user?.subscription_status === 'trial' && trialEnd && (
               <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('trial_ends_on') || 'Your free trial ends on {date}').replace('{date}', formatShortDate(trialEnd, language, { year: true }))}</Text>
             )}
-            {user?.subscription_expires_at && user?.subscription_status !== 'trial' && (() => {
-              const exp = new Date(user.subscription_expires_at);
-              const daysLeft = Math.max(0, Math.floor((exp.getTime() - Date.now()) / (1000*60*60*24)));
-              return <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('subscription_expires_in') || 'Expires in {days} days').replace('{days}', String(daysLeft))}</Text>;
-            })()}
+            {user?.subscription_expires_at && user?.subscription_status === 'active' && !schoolCovered && (
+              <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>
+                {cancelAtPeriodEnd
+                  ? endsLine(user.subscription_expires_at, language, t)
+                  : renewsLine(nextPayment, user.subscription_expires_at, language, t)}
+              </Text>
+            )}
           </View>
         </View>
+      )}
+
+      {/* Manage billing: Stripe's own page (card, invoices, plan), behind the parent check like checkout */}
+      {!schoolCovered && ['active', 'trialing', 'past_due'].includes(user?.subscription_status || '') && (
+        <TouchableOpacity style={st.manageBillingBtn} onPress={handleUpdateCard}>
+          <MaterialIcons name="credit-card" size={18} color="#5C6BC0" />
+          <Text style={st.manageBillingText}>{t('manage_billing') || 'Manage billing'}</Text>
+        </TouchableOpacity>
       )}
 
       {/* Trial CTA */}
@@ -532,6 +556,8 @@ const st = StyleSheet.create({
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   featureText: { fontSize: 13, color: '#555', flex: 1 },
   subscribeBtn: { backgroundColor: '#5C6BC0', borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 16 },
+  manageBillingBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: '#5C6BC0', borderRadius: 14, padding: 14, marginBottom: 16 },
+  manageBillingText: { fontSize: 15, fontWeight: '700', color: '#5C6BC0' },
   subscribeBtnText: { fontSize: 17, fontWeight: '700', color: 'white' },
   schoolCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE7F6', borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#D1C4E9' },
   schoolTitle: { fontSize: 15, fontWeight: '700', color: '#4527A0', marginBottom: 4 },

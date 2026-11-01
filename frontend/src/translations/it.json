@@ -2420,5 +2420,11 @@
   "got_it": "Capito",
   "verify_spam_hint": "Può volerci qualche minuto. Controlla la cartella della posta indesiderata o spam.",
   "verify_code_resent": "Abbiamo inviato di nuovo il codice.",
-  "resend_in_seconds": "Reinvia tra {seconds} s"
+  "resend_in_seconds": "Reinvia tra {seconds} s",
+  "renews_on_line": "Si rinnova il {date} - {amount} per {interval}",
+  "renews_on_date": "Si rinnova il {date}",
+  "ends_on_line": "Termina il {date}. Mantieni l'accesso fino ad allora.",
+  "manage_billing": "Gestisci fatturazione",
+  "billing_interval_month": "mese",
+  "billing_interval_year": "anno"
 }

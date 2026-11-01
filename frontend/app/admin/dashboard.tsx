@@ -7,7 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
-import { formatNumericDate, formatNumericDateTime } from '../../src/utils/dateLabel';
+import { formatLongDate, formatShortDate, formatShortDateTime } from '../../src/utils/dateLabel';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
@@ -1028,7 +1028,7 @@ function SchoolsManager({ stats, statsLoading, authToken, statsPeriod }: { stats
                         return active ? (
                           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#EDE7F6', borderRadius: 8, padding: 8, marginBottom: 6 }}>
                             <Text style={{ fontSize: 12, fontWeight: '800', color: '#1A1A2E', flexShrink: 1 }}>
-                              {active.code} <Text style={{ fontSize: 10, fontWeight: '600', color: '#888' }}>· {tierLabel(active.tier)} · {t('until_label') || 'until'} {formatNumericDate(active.expires_at, language)}</Text>
+                              {active.code} <Text style={{ fontSize: 10, fontWeight: '600', color: '#888' }}>· {tierLabel(active.tier)} · {t('until_label') || 'until'} {formatLongDate(active.expires_at, language)}</Text>
                             </Text>
                             <TouchableOpacity onPress={() => copyToClipboard(active.code)} style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: 'white', borderRadius: 8 }}>
                               <Text style={{ fontSize: 11, fontWeight: '700', color: '#5C6BC0' }}>📋 {t('copy') || 'Copy'}</Text>
@@ -1780,7 +1780,7 @@ function StrategyManager({ authToken, isSuperAdmin }: { authToken: string|null, 
                     )}
                     {strat.created_at && (
                       <Text style={{ fontSize: 9, color: '#CCC', marginTop: 1 }}>
-                        {t('added_label') || 'Added'} {formatNumericDate(strat.created_at, language)}
+                        {t('added_label') || 'Added'} {formatShortDate(strat.created_at, language, { year: true })}
                       </Text>
                     )}
                   </View>
@@ -2649,7 +2649,7 @@ function TeacherWellbeing({ authToken, statsPeriod }: any) {
             <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
               <View style={[s.colourDot, { backgroundColor: ZONE_COLORS[c.zone] || '#999' }]} />
               <Text style={s.classroomMeta}>
-                {formatNumericDate(c.timestamp, language)}
+                {formatShortDate(c.timestamp, language, { year: true })}
                 {c.strategies_selected?.length ? ` · ${c.strategies_selected.map((sid: string) => strategyLabel(sid, t, STRAT)).join(', ')}` : ''}
               </Text>
             </View>
@@ -2715,7 +2715,7 @@ function WellbeingSupportRequests({ authToken }: any) {
                 <Text style={s.classroomName}>{r.teacher_name || 'Teacher'}</Text>
               </View>
               <Text style={[s.classroomMeta, { marginTop: 4 }]}>{r.message}</Text>
-              <Text style={[s.classroomMeta, { marginTop: 2, color: '#AAA' }]}>{formatNumericDateTime(r.created_at, language)}</Text>
+              <Text style={[s.classroomMeta, { marginTop: 2, color: '#AAA' }]}>{formatShortDateTime(r.created_at, language, { year: true })}</Text>
             </View>
             <TouchableOpacity
               onPress={() => acknowledge(r.id)}

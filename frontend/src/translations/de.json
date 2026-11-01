@@ -2420,5 +2420,11 @@
   "got_it": "Verstanden",
   "verify_spam_hint": "Es kann einige Minuten dauern. Prüfen Sie Ihren Spam- oder Junk-Ordner.",
   "verify_code_resent": "Wir haben den Code erneut gesendet.",
-  "resend_in_seconds": "Erneut senden in {seconds} s"
+  "resend_in_seconds": "Erneut senden in {seconds} s",
+  "renews_on_line": "Verlängert sich am {date} - {amount} pro {interval}",
+  "renews_on_date": "Verlängert sich am {date}",
+  "ends_on_line": "Endet am {date}. Bis dahin behältst du den Zugriff.",
+  "manage_billing": "Abrechnung verwalten",
+  "billing_interval_month": "Monat",
+  "billing_interval_year": "Jahr"
 }
