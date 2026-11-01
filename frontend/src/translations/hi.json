@@ -2269,5 +2269,8 @@
   "ends_on_line": "{date} को समाप्त होगा। तब तक आपकी पहुँच बनी रहेगी।",
   "manage_billing": "बिलिंग प्रबंधित करें",
   "billing_interval_month": "माह",
-  "billing_interval_year": "वर्ष"
+  "billing_interval_year": "वर्ष",
+  "teacher_includes_parent_note": "शिक्षक प्लान में अभिभावक व्यू भी शामिल है।",
+  "switch_to_teacher_note": "शिक्षक प्लान पर जाना चाहते हैं? हमें ईमेल करें, हम इसे सेट कर देंगे।",
+  "already_subscribed_msg": "आपका प्लान पहले से सक्रिय है। इसे बदलने या रद्द करने के लिए बिलिंग प्रबंधित करें का उपयोग करें।"
 }

@@ -2269,5 +2269,8 @@
   "ends_on_line": "ينتهي في {date}. يبقى وصولك مفتوحًا حتى ذلك الحين.",
   "manage_billing": "إدارة الفوترة",
   "billing_interval_month": "شهر",
-  "billing_interval_year": "سنة"
+  "billing_interval_year": "سنة",
+  "teacher_includes_parent_note": "تتضمن خطة المعلم أيضًا عرض ولي الأمر.",
+  "switch_to_teacher_note": "هل تريد التحويل إلى خطة المعلم؟ راسلنا وسنقوم بإعدادها.",
+  "already_subscribed_msg": "لديك خطة نشطة بالفعل. استخدم إدارة الفوترة لتغييرها أو إلغائها."
 }

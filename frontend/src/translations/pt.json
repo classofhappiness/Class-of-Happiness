@@ -2417,5 +2417,8 @@
   "ends_on_line": "Termina em {date}. Você mantém o acesso até lá.",
   "manage_billing": "Gerenciar cobrança",
   "billing_interval_month": "mês",
-  "billing_interval_year": "ano"
+  "billing_interval_year": "ano",
+  "teacher_includes_parent_note": "O plano Professor também inclui a visão de Pais.",
+  "switch_to_teacher_note": "Quer mudar para o plano Professor? Envie-nos um e-mail e tratamos disso.",
+  "already_subscribed_msg": "Você já tem um plano ativo. Use Gerenciar cobrança para alterá-lo ou cancelá-lo."
 }

@@ -2426,5 +2426,8 @@
   "ends_on_line": "Endet am {date}. Bis dahin behältst du den Zugriff.",
   "manage_billing": "Abrechnung verwalten",
   "billing_interval_month": "Monat",
-  "billing_interval_year": "Jahr"
+  "billing_interval_year": "Jahr",
+  "teacher_includes_parent_note": "Der Lehrer-Plan enthält auch die Eltern-Ansicht.",
+  "switch_to_teacher_note": "Möchtest du zum Lehrer-Plan wechseln? Schreib uns, wir richten es ein.",
+  "already_subscribed_msg": "Du hast bereits einen aktiven Plan. Nutze Abrechnung verwalten, um ihn zu ändern oder zu kündigen."
 }

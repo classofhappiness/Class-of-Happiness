@@ -2269,5 +2269,8 @@
   "ends_on_line": "Заканчивается {date}. До этого времени доступ сохраняется.",
   "manage_billing": "Управление оплатой",
   "billing_interval_month": "месяц",
-  "billing_interval_year": "год"
+  "billing_interval_year": "год",
+  "teacher_includes_parent_note": "Тариф «Учитель» также включает режим «Родитель».",
+  "switch_to_teacher_note": "Хотите перейти на тариф «Учитель»? Напишите нам, и мы всё настроим.",
+  "already_subscribed_msg": "У вас уже есть активный тариф. Измените или отмените его в разделе «Управление оплатой»."
 }

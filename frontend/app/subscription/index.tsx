@@ -84,6 +84,7 @@ export default function SubscriptionScreen() {
   const [nextPayment, setNextPayment] = useState<NextPayment>(null);
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
   const [schoolCovered, setSchoolCovered] = useState(false);
+  const hasParentPlan = user?.subscription_status === 'active' && user?.subscription_plan === 'parent' && !schoolCovered;
   useEffect(() => {
     if (user?.role !== 'teacher' && user?.role !== 'parent') return;
     subscriptionApi.getStatus().then(d => {
@@ -206,7 +207,8 @@ export default function SubscriptionScreen() {
         else await Linking.openURL(url);
       }
     } catch (e: any) {
-      Alert.alert(t('error') || 'Error', e.message || (t('could_not_create_checkout') || 'Could not create checkout'));
+      const already = String(e?.message || '').includes('already_subscribed');
+      Alert.alert(t('error') || 'Error', already ? (t('already_subscribed_msg') || 'You already have an active plan. Use Manage billing to change or cancel it.') : (e.message || (t('could_not_create_checkout') || 'Could not create checkout')));
     } finally { setLoading(false); }
   };
 
@@ -342,15 +344,21 @@ export default function SubscriptionScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Both roles note */}
-      {selectedRole === 'teacher' && (
+      {/* Plan note on the Teacher tab: someone already on the Parent plan is offered a switch by
+          email (no second checkout); everyone else is told the Teacher plan includes the Parent view */}
+      {selectedRole === 'teacher' && (hasParentPlan ? (
         <TouchableOpacity
-          onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=Parent and Teacher Plan')}
+          onPress={() => Linking.openURL('mailto:hello@classofhappiness.com?subject=Switch to the Teacher plan')}
           style={{ backgroundColor:'#E8F5E9', borderRadius:10, padding:10, marginBottom:12, flexDirection:'row', alignItems:'center', gap:8 }}>
-          <MaterialIcons name="info" size={16} color="#4CAF50" />
-          <Text style={{ fontSize:12, color:'#2E7D32', flex:1 }}>{t('combined_plan_note') || 'Need parent AND teacher access? Contact us for a combined plan.'}</Text>
+          <MaterialIcons name="mail-outline" size={16} color="#4CAF50" />
+          <Text style={{ fontSize:12, color:'#2E7D32', flex:1 }}>{t('switch_to_teacher_note') || "Want to switch to the Teacher plan? Email us and we'll set it up."}</Text>
         </TouchableOpacity>
-      )}
+      ) : (
+        <View style={{ backgroundColor:'#E8F5E9', borderRadius:10, padding:10, marginBottom:12, flexDirection:'row', alignItems:'center', gap:8 }}>
+          <MaterialIcons name="info" size={16} color="#4CAF50" />
+          <Text style={{ fontSize:12, color:'#2E7D32', flex:1 }}>{t('teacher_includes_parent_note') || 'The Teacher plan also includes the Parent view.'}</Text>
+        </View>
+      ))}
 
       {/* Parent, covered by an active school package — no paywall, real fix Aug 18 */}
       {selectedRole === 'parent' && parentCoverageLoading && (

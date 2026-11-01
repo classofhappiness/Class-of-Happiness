@@ -2269,5 +2269,8 @@
   "ends_on_line": "将于{date}结束。在此之前您仍可使用。",
   "manage_billing": "管理账单",
   "billing_interval_month": "月",
-  "billing_interval_year": "年"
+  "billing_interval_year": "年",
+  "teacher_includes_parent_note": "教师套餐也包含家长视图。",
+  "switch_to_teacher_note": "想切换到教师套餐?给我们发邮件,我们来为您设置。",
+  "already_subscribed_msg": "您已有有效套餐。请使用“管理账单”来更改或取消。"
 }

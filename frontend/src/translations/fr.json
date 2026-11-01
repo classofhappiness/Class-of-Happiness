@@ -2426,5 +2426,8 @@
   "ends_on_line": "Se termine le {date}. Vous gardez l'accès jusque-là.",
   "manage_billing": "Gérer la facturation",
   "billing_interval_month": "mois",
-  "billing_interval_year": "an"
+  "billing_interval_year": "an",
+  "teacher_includes_parent_note": "Le forfait Enseignant inclut aussi la vue Parent.",
+  "switch_to_teacher_note": "Vous voulez passer au forfait Enseignant ? Écrivez-nous et nous nous en occupons.",
+  "already_subscribed_msg": "Vous avez déjà un forfait actif. Utilisez Gérer la facturation pour le modifier ou l'annuler."
 }

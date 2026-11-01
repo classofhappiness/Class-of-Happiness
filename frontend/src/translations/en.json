@@ -2283,5 +2283,8 @@
   "ends_on_line": "Ends on {date}. You keep access until then.",
   "manage_billing": "Manage billing",
   "billing_interval_month": "month",
-  "billing_interval_year": "year"
+  "billing_interval_year": "year",
+  "teacher_includes_parent_note": "The Teacher plan also includes the Parent view.",
+  "switch_to_teacher_note": "Want to switch to the Teacher plan? Email us and we'll set it up.",
+  "already_subscribed_msg": "You already have an active plan. Use Manage billing to change or cancel it."
 }

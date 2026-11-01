@@ -2417,5 +2417,8 @@
   "ends_on_line": "Termina el {date}. Mantienes el acceso hasta entonces.",
   "manage_billing": "Gestionar facturación",
   "billing_interval_month": "mes",
-  "billing_interval_year": "año"
+  "billing_interval_year": "año",
+  "teacher_includes_parent_note": "El plan Docente también incluye la vista de Padres.",
+  "switch_to_teacher_note": "¿Quieres cambiar al plan Docente? Escríbenos y lo configuramos.",
+  "already_subscribed_msg": "Ya tienes un plan activo. Usa Gestionar facturación para cambiarlo o cancelarlo."
 }
