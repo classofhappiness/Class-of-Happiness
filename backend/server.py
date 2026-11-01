@@ -14386,9 +14386,11 @@ async def create_subscription_checkout(request: Request):
         success_url = f"{origin_url}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{origin_url}/subscription"
     else:
-        proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
-        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
-        base = f"{proto}://{host}/api/subscription/return"
+        # Always this server's own https address: a host sent by the caller is only used if it is one of ours.
+        host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip().lower()
+        if not (host == "class-of-happiness-production.up.railway.app" or host.endswith(".classofhappiness.com") or host == "classofhappiness.com"):
+            host = "class-of-happiness-production.up.railway.app"
+        base = f"https://{host}/api/subscription/return"
         success_url = f"{base}?to=success&session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{base}?to=cancel"
     try:
@@ -14413,7 +14415,7 @@ async def subscription_return(to: str = "cancel", session_id: str = ""):
     Opens the app on the matching screen; shows a plain 'return to the app' link as a fallback."""
     from fastapi.responses import HTMLResponse
     import html as _html
-    safe_sid = "".join(ch for ch in session_id if ch.isalnum() or ch == "_")[:200]
+    safe_sid = "".join(ch for ch in session_id if ch.isascii() and (ch.isalnum() or ch == "_"))[:200]
     link = "classofhappiness://subscription/success?session_id=" + safe_sid if (to == "success" and safe_sid) else "classofhappiness://subscription"
     page = (
         '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
