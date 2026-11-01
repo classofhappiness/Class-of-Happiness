@@ -1246,6 +1246,7 @@ export interface SupportRequest {
   admin_response: string | null;
   responded_at: string | null;
   acknowledged_at: string | null;
+  teacher_dismissed_at?: string | null; // the teacher tapped "Got it" on the admin's reply
   arrived_at: string | null; // teacher's own happy-path close - see markArrived()
   cancelled_at: string | null;
   superseded_at: string | null;
@@ -1289,6 +1290,9 @@ export const supportRequestsApi = {
 
   respond: (id: string, response: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) }),
+
+  dismissReply: (id: string): Promise<SupportRequest> =>
+    apiRequest(`/support-requests/${id}/dismiss-reply`, { method: 'POST' }),
 
   markArrived: (id: string): Promise<SupportRequest> =>
     apiRequest(`/support-requests/${id}/arrived`, { method: 'POST' }),

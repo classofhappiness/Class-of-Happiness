@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, ActivityIndicator, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   SupportRequest, formatSupportRequestStatus, describeSupportRequest, formatSentLine,
   supportRequestsApi,
@@ -11,11 +10,10 @@ import { EMOTION_COLOURS } from '../constants/emotionColours';
 import { useApp } from '../context/AppContext';
 
 const FLASH_MS = 4000; // how long a just-RESOLVED request stays visible before it self-removes
-// Oct 31: an admin's written reply ("I'll be 5 minutes") is NOT flashed for 4 seconds any more. The card stays on the
-// dashboard, open, showing the reply, until the teacher taps "Got it" (remembered on the phone) or an hour has passed.
-const REPLY_KEEP_MS = 60 * 60 * 1000;
-const DISMISSED_KEY = 'coh_sr_dismissed_replies';
-const isReplied = (r: SupportRequest) => r.status === 'RESOLVED' && !r.arrived_at && !!(r.admin_response || '').trim();
+// Oct 31: an admin's written reply is NOT flashed for 4 seconds. The request stays on the teacher's screen, open, showing the
+// full reply, until the TEACHER taps "Got it". That is stored on the server (teacher_dismissed_at), so it holds across app
+// restarts and other devices; there is no time limit. Each request is handled on its own. The admin still sees it resolved.
+const isReplied = (r: SupportRequest) => r.status === 'RESOLVED' && !r.arrived_at && !r.teacher_dismissed_at && !!(r.admin_response || '').trim();
 
 // Real revision Sep 11 (Jono's lifecycle spec): PENDING and ACKNOWLEDGED both now persist
 // indefinitely - "Seen — on the way" is a real waiting state, not a 4s toast, and stays
@@ -42,17 +40,21 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
   const list = useSupportRequestsList(enabled);
   const [active, setActive] = useState<Record<string, SupportRequest>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [busy, setBusy] = useState<Record<string, 'arriving' | 'cancelling' | undefined>>({});
+  const [busy, setBusy] = useState<Record<string, 'arriving' | 'cancelling' | 'dismissing' | undefined>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Hides a card the moment "Got it" is tapped; the server's teacher_dismissed_at keeps it hidden from then on.
   const [dismissed, setDismissed] = useState<string[]>([]);
-  useEffect(() => {
-    AsyncStorage.getItem(DISMISSED_KEY).then((v) => { if (v) { try { setDismissed(JSON.parse(v)); } catch {} } }).catch(() => {});
-  }, []);
-  const dismissReply = (id: string) => setDismissed((d) => {
-    const n = d.includes(id) ? d : [...d, id].slice(-50);
-    AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(n)).catch(() => {});
-    return n;
-  });
+  const dismissReply = async (id: string) => {
+    setBusy((b) => ({ ...b, [id]: 'dismissing' }));
+    try {
+      await supportRequestsApi.dismissReply(id);
+      setDismissed((d) => (d.includes(id) ? d : [...d, id]));
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e.message || (t('could_not_update_request') || 'Could not update request'));
+    } finally {
+      setBusy((b) => ({ ...b, [id]: undefined }));
+    }
+  };
 
   // Real fix Sep 11 (stop-ship): this used to run its own setInterval + fetch. Now purely
   // derives from the one shared poller (supportRequestsPoller.ts) - see that file for why.
@@ -73,7 +75,7 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
   //     re-render. This is real defense in depth, not just a mirror of fix (1): flipTimestamp-
   //     driven entries (RESOLVED/CANCELLED) can still legitimately re-add the same id on a
   //     later tick before its flash timer fires, which fix (1) alone wouldn't catch.
-  const listSignature = list.map((r) => `${r.id}:${r.status}:${(r.admin_response || '').length}`).join('|') + '#' + dismissed.length;
+  const listSignature = list.map((r) => `${r.id}:${r.status}:${(r.admin_response || '').length}:${r.teacher_dismissed_at ? 1 : 0}`).join('|') + '#' + dismissed.length;
   useEffect(() => {
     const now = Date.now();
     const next: Record<string, SupportRequest> = {};
@@ -84,12 +86,12 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
         if (timers.current[r.id]) { clearTimeout(timers.current[r.id]); delete timers.current[r.id]; }
         return;
       }
-      // An admin's written reply stays until the teacher dismisses it.
+      // An admin's written reply stays until the teacher taps "Got it" (no timer).
       if (isReplied(r)) {
-        const at = r.responded_at ? new Date(r.responded_at).getTime() : null;
-        if (!dismissed.includes(r.id) && at !== null && now - at < REPLY_KEEP_MS) next[r.id] = r;
+        if (!dismissed.includes(r.id)) next[r.id] = r;
         return;
       }
+      if (r.status === 'RESOLVED' && !r.arrived_at && r.teacher_dismissed_at) return; // replied and dismissed
       // RESOLVED or CANCELLED - brief flash, then gone for good
       const flipAt = flipTimestamp(r);
       if (flipAt === null) return;
@@ -169,7 +171,7 @@ export function SupportRequestBanner({ enabled }: { enabled: boolean }) {
 function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel, onDismiss }: {
   request: SupportRequest;
   expanded: boolean;
-  busy: 'arriving' | 'cancelling' | undefined;
+  busy: 'arriving' | 'cancelling' | 'dismissing' | undefined;
   onToggle: () => void;
   onArrived: () => void;
   onCancel: () => void;
@@ -210,8 +212,8 @@ function RequestCard({ request, expanded, busy, onToggle, onArrived, onCancel, o
               <Text style={styles.replyLabel}>{t('support_reply_from_admin') || 'Reply from your school admin'}</Text>
               <Text style={styles.replyText}>{request.admin_response}</Text>
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.arrivedBtn} onPress={onDismiss}>
-                  <Text style={styles.arrivedBtnText}>{t('got_it') || 'Got it'}</Text>
+                <TouchableOpacity style={styles.arrivedBtn} disabled={!!busy} onPress={onDismiss}>
+                  {busy === 'dismissing' ? <ActivityIndicator color="white" /> : <Text style={styles.arrivedBtnText}>{t('got_it') || 'Got it'}</Text>}
                 </TouchableOpacity>
               </View>
             </>
