@@ -37,7 +37,7 @@ const PARENT_FEATURE_FALLBACKS = [
   'Link to school - see school data',
   'Monthly PDF wellbeing reports',
   'Creature reward system',
-  '6 languages supported',
+  '10 languages supported',
 ];
 
 const TEACHER_FEATURE_KEYS = [
@@ -52,7 +52,7 @@ const TEACHER_FEATURE_FALLBACKS = [
   'Bulk check-ins',
   'Push alerts',
   'Strategy library',
-  '6 languages supported',
+  '10 languages supported',
 ];
 
 export default function SubscriptionScreen() {
