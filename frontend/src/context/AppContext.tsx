@@ -679,18 +679,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const userData = await authApi.getMe();
       setUser(userData);
       setIsAuthenticated(true);
-      // Always restore saved local language preference - never let server override it
+      // Language rule (Nov 1): English until the user picks a language on this device; after that the device's choice
+      // always wins. The account's stored language is never adopted here (it used to be, when nothing was saved
+      // locally, so a fresh install signed in to an account that once had another language started in that language),
+      // and neither is the phone's own language.
       const localLang = await getStorageWithTimeout('app_language', 5000);
       if (localLang) {
-        // User has a saved language - always use it, ignore server value
         setLanguageState(localLang);
         await fetchTranslations(localLang);
-      } else if (userData.language && userData.language !== 'en') {
-        // No local preference and server has a non-English language set
-        setLanguageState(userData.language);
-        await fetchTranslations(userData.language);
-        // Save it locally so it persists
-        try { await setStorageWithTimeout('app_language', userData.language, 3000); } catch (e) { console.error('[context/AppContext:661]', e); }
       }
     } catch (error) {
       setUser(null);
