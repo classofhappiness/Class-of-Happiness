@@ -26057,7 +26057,7 @@ async def email_signup(request: Request):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "email_verified": False,
         "email_code": verify_code,
-        "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
+        "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=VERIFY_CODE_MINUTES)).isoformat(),
     }
     try:
         supabase.table("users").insert(new_user).execute()
@@ -26118,7 +26118,7 @@ _EMAIL_TEXTS = {
         'vs': "Verify your Class of Happiness email",
         'vh': "Verify your email",
         'vb': "Enter this code in the app to verify your email address:",
-        've': "This code expires in 15 minutes.",
+        've': "This code expires in 30 minutes.",
     },
     'pt': {
         'rs': "Repor a palavra-passe do Class of Happiness",
@@ -26133,7 +26133,7 @@ _EMAIL_TEXTS = {
         'vs': "Confirma o teu email do Class of Happiness",
         'vh': "Confirma o teu email",
         'vb': "Introduz este código na aplicação para confirmar o teu endereço de email:",
-        've': "Este código expira dentro de 15 minutos.",
+        've': "Este código expira dentro de 30 minutos.",
     },
     'es': {
         'rs': "Restablece tu contraseña de Class of Happiness",
@@ -26148,7 +26148,7 @@ _EMAIL_TEXTS = {
         'vs': "Verifica tu correo de Class of Happiness",
         'vh': "Verifica tu correo",
         'vb': "Introduce este código en la aplicación para verificar tu dirección de correo:",
-        've': "Este código caduca en 15 minutos.",
+        've': "Este código caduca en 30 minutos.",
     },
     'fr': {
         'rs': "Réinitialisez votre mot de passe Class of Happiness",
@@ -26163,7 +26163,7 @@ _EMAIL_TEXTS = {
         'vs': "Vérifiez votre e-mail Class of Happiness",
         'vh': "Vérifiez votre e-mail",
         'vb': "Saisissez ce code dans l'application pour vérifier votre adresse e-mail :",
-        've': "Ce code expire dans 15 minutes.",
+        've': "Ce code expire dans 30 minutes.",
     },
     'de': {
         'rs': "Setzen Sie Ihr Class-of-Happiness-Passwort zurück",
@@ -26178,7 +26178,7 @@ _EMAIL_TEXTS = {
         'vs': "Bestätigen Sie Ihre Class-of-Happiness-E-Mail",
         'vh': "E-Mail-Adresse bestätigen",
         'vb': "Geben Sie diesen Code in der App ein, um Ihre E-Mail-Adresse zu bestätigen:",
-        've': "Dieser Code läuft in 15 Minuten ab.",
+        've': "Dieser Code läuft in 30 Minuten ab.",
     },
     'it': {
         'rs': "Reimposta la tua password di Class of Happiness",
@@ -26193,7 +26193,7 @@ _EMAIL_TEXTS = {
         'vs': "Verifica la tua email di Class of Happiness",
         'vh': "Verifica la tua email",
         'vb': "Inserisci questo codice nell'app per verificare il tuo indirizzo email:",
-        've': "Questo codice scade tra 15 minuti.",
+        've': "Questo codice scade tra 30 minuti.",
     },
     'ru': {
         'rs': "Сброс пароля Class of Happiness",
@@ -26208,7 +26208,7 @@ _EMAIL_TEXTS = {
         'vs': "Подтвердите адрес электронной почты в Class of Happiness",
         'vh': "Подтвердите адрес электронной почты",
         'vb': "Введите этот код в приложении, чтобы подтвердить адрес электронной почты:",
-        've': "Код действителен 15 минут.",
+        've': "Код действителен 30 минут.",
     },
     'zh': {
         'rs': "重置您的 Class of Happiness 密码",
@@ -26223,7 +26223,7 @@ _EMAIL_TEXTS = {
         'vs': "验证您的 Class of Happiness 邮箱",
         'vh': "验证您的邮箱",
         'vb': "请在应用中输入此验证码以验证您的邮箱地址：",
-        've': "此验证码 15 分钟后失效。",
+        've': "此验证码 30 分钟后失效。",
     },
     'hi': {
         'rs': "अपना Class of Happiness पासवर्ड रीसेट करें",
@@ -26238,7 +26238,7 @@ _EMAIL_TEXTS = {
         'vs': "अपना Class of Happiness ईमेल सत्यापित करें",
         'vh': "अपना ईमेल सत्यापित करें",
         'vb': "अपना ईमेल पता सत्यापित करने के लिए ऐप में यह कोड दर्ज करें:",
-        've': "यह कोड 15 मिनट में समाप्त हो जाएगा।",
+        've': "यह कोड 30 मिनट में समाप्त हो जाएगा।",
     },
     'ar': {
         'rs': "إعادة تعيين كلمة مرور Class of Happiness",
@@ -26253,7 +26253,7 @@ _EMAIL_TEXTS = {
         'vs': "تحقق من بريدك الإلكتروني في Class of Happiness",
         'vh': "تحقق من بريدك الإلكتروني",
         'vb': "أدخل هذا الرمز في التطبيق للتحقق من عنوان بريدك الإلكتروني:",
-        've': "تنتهي صلاحية هذا الرمز بعد 15 دقيقة.",
+        've': "تنتهي صلاحية هذا الرمز بعد 30 دقيقة.",
     },
 }
 
@@ -26359,25 +26359,59 @@ async def verify_email(request: Request):
     }).eq("user_id", user["user_id"]).execute()
     return {"user": _public_user(updated.data[0] if updated.data else user)}
 
+# Sign-up verification codes: valid 30 minutes (admin sign-in codes stay at 10). A resend while the code is still valid sends
+# the SAME code, so an email that arrives late still works. Resends are limited to 5 per hour per address with a 60-second
+# gap; the counter is in memory (per server process, cleared on a restart), which is enough to stop mail-bombing.
+VERIFY_CODE_MINUTES = 30
+VERIFY_RESEND_MAX_PER_HOUR = 5
+VERIFY_RESEND_COOLDOWN_SECONDS = 60
+_verify_resend_log: dict = {}
+
+def _verify_resend_check(email: str) -> None:
+    """Raises 429 when this address resent too recently or too often; records the attempt otherwise."""
+    now = time.time()
+    sent = [t for t in _verify_resend_log.get(email, []) if now - t < 3600]
+    if sent and now - sent[-1] < VERIFY_RESEND_COOLDOWN_SECONDS:
+        wait = int(VERIFY_RESEND_COOLDOWN_SECONDS - (now - sent[-1])) + 1
+        raise HTTPException(status_code=429, detail=f"Please wait {wait} seconds before asking for another code.", headers={"Retry-After": str(wait)})
+    if len(sent) >= VERIFY_RESEND_MAX_PER_HOUR:
+        wait = int(3600 - (now - sent[0])) + 1
+        raise HTTPException(status_code=429, detail="Too many codes requested. Please try again in an hour, or check your Junk or Spam folder.", headers={"Retry-After": str(wait)})
+    sent.append(now)
+    _verify_resend_log[email] = sent
+    if len(_verify_resend_log) > 5000:
+        for k in [k for k, v in _verify_resend_log.items() if not v or now - v[-1] >= 3600]:
+            _verify_resend_log.pop(k, None)
+
 @api_router.post("/auth/resend-verification-email")
 async def resend_verification_email(request: Request):
-    """Real product fix Sep 12: lets a new signup get a fresh code if the first one expired
-    or never arrived, without starting signup over. Session-based, same as verify-email."""
+    """Lets a new signup get the code again if it never arrived or came late, without starting signup over.
+    Session-based, same as verify-email. While the stored code is still valid the same code is sent again."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     if user.get("email_verified", True):
         return {"status": "Already verified."}
-    code = f"{secrets.randbelow(1000000):06d}"
-    supabase.table("users").update({
-        "email_code": code,
-        "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
-    }).eq("user_id", user["user_id"]).execute()
+    _verify_resend_check((user.get("email") or "").lower())
+    code = user.get("email_code")
+    expires = user.get("email_code_expires")
+    still_valid = False
+    try:
+        still_valid = bool(code) and bool(expires) and datetime.fromisoformat(str(expires).replace("Z", "+00:00")) > datetime.now(timezone.utc)
+    except Exception:
+        still_valid = False
+    if not still_valid:
+        code = f"{secrets.randbelow(1000000):06d}"
+        supabase.table("users").update({
+            "email_code": code,
+            "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=VERIFY_CODE_MINUTES)).isoformat(),
+        }).eq("user_id", user["user_id"]).execute()
+        _auth_cache_evict_user(user["user_id"])   # the next verify must see the new code, not the cached row
     sent, detail = _send_email_code(user["email"], code, purpose="verify", lang=_email_lang(user.get("language"), None))
     if not sent:
         logger.warning(f"[SECURITY] Resend verification email failed for {user['email']}: {detail}")
         raise HTTPException(status_code=500, detail="Could not send verification email. Please try again shortly.")
-    return {"status": "Verification code sent."}
+    return {"status": "Verification code sent.", "cooldown_seconds": VERIFY_RESEND_COOLDOWN_SECONDS}
 
 @api_router.post("/auth/reset-password-request")
 async def reset_password_request(request: Request):
