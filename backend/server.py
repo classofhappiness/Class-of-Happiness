@@ -22584,6 +22584,30 @@ async def mark_support_request_arrived(request_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Could not mark arrived - has 04_add_support_requests_arrived_at.sql been run? ({str(e)[:150]})")
     return result.data[0] if result.data else {**row, **updates}
 
+@api_router.post("/support-requests/{request_id}/dismiss-reply")
+async def dismiss_support_reply(request_id: str, request: Request):
+    """The teacher taps "Got it" on an admin's reply. Stored on the request (teacher_dismissed_at) so it holds across app
+    restarts and devices. Only the teacher who sent it, and only once it has a reply; the admin's view and the request's
+    status are untouched. Repeating it keeps the first timestamp."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "teacher":
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    existing = supabase.table("support_requests").select("*").eq("id", request_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Support request not found")
+    row = existing.data[0]
+    if row.get("requested_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your request")
+    if not (row.get("admin_response") or "").strip():
+        raise HTTPException(status_code=400, detail="This request has no reply to dismiss")
+    if row.get("teacher_dismissed_at"):
+        return row
+    try:
+        result = supabase.table("support_requests").update({"teacher_dismissed_at": datetime.now(timezone.utc).isoformat()}).eq("id", request_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save - has the teacher_dismissed_at column been added? ({str(e)[:120]})")
+    return result.data[0] if result.data else row
+
 @api_router.post("/support-requests/{request_id}/cancel")
 async def cancel_support_request(request_id: str, request: Request):
     """Real addition Sep 11 (one-open-request rule): a teacher is never stuck behind
