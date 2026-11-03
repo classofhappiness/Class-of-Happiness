@@ -17435,6 +17435,59 @@ def _preview_thumbnail(resource_id: str, page_order: int, image_b64: str, width:
     _preview_thumb_cache[key] = (now + _PREVIEW_THUMB_TTL, out)
     return out
 
+_YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_YT_CACHE_TTL = 24 * 3600
+_YT_MISS_TTL = 600
+_YT_CACHE_MAX = 300
+_youtube_thumb_cache: dict = {}    # video id -> (expires_at, base64 JPEG or None for "no thumbnail")
+
+def _youtube_video_id(url: str) -> Optional[str]:
+    """The 11-character video id of a YouTube watch / youtu.be / shorts / embed link, else None."""
+    from urllib.parse import urlparse, parse_qs
+    try:
+        u = urlparse((url or "").strip())
+    except Exception:
+        return None
+    if u.scheme not in ("http", "https"):
+        return None
+    host = (u.hostname or "").lower()
+    vid = None
+    if host == "youtu.be":
+        vid = u.path.strip("/").split("/")[0]
+    elif host in ("youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"):
+        parts = [x for x in u.path.split("/") if x]
+        if u.path.rstrip("/") == "/watch":
+            vid = (parse_qs(u.query).get("v") or [""])[0]
+        elif len(parts) >= 2 and parts[0] in ("shorts", "embed", "live", "v"):
+            vid = parts[1]
+    return vid if vid and _YT_ID_RE.match(vid) else None
+
+async def _fetch_youtube_thumbnail(video_id: str) -> Optional[str]:
+    """The video's own thumbnail as a base64 JPEG, fetched by the server (the app never contacts YouTube) from the fixed
+    host i.ytimg.com with a validated id, and cached for a day (ten minutes when there is none). Largest size first."""
+    now = time.time()
+    hit = _youtube_thumb_cache.get(video_id)
+    if hit and hit[0] > now:
+        return hit[1]
+    out = None
+    try:
+        from PIL import Image
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=False) as client:
+            for name in ("maxresdefault", "hqdefault"):
+                resp = await client.get(f"https://i.ytimg.com/vi/{video_id}/{name}.jpg")
+                if resp.status_code != 200 or not resp.content or len(resp.content) > 2_000_000:
+                    continue
+                im = Image.open(io.BytesIO(resp.content)); im.verify()
+                out = base64.b64encode(resp.content).decode()
+                break
+    except Exception as e:
+        logger.warning(f"[youtube-thumb] fetch failed for {video_id}: {type(e).__name__}")
+    if len(_youtube_thumb_cache) >= _YT_CACHE_MAX:
+        for k in [k for k, v in _youtube_thumb_cache.items() if v[0] <= now] or list(_youtube_thumb_cache)[:_YT_CACHE_MAX // 4]:
+            _youtube_thumb_cache.pop(k, None)
+    _youtube_thumb_cache[video_id] = (now + (_YT_CACHE_TTL if out else _YT_MISS_TTL), out)
+    return out
+
 @api_router.get("/resources/{resource_id}/previews")
 async def get_resource_previews(resource_id: str, request: Request, width: Optional[int] = None):
     """Page-preview images (base64 JPEG, up to 3) for the resource detail screen. Same read
@@ -17463,6 +17516,18 @@ async def get_resource_previews(resource_id: str, request: Request, width: Optio
     except Exception as e:
         logger.warning(f"[resource-previews] fetch failed for {resource_id}: {e}")
         rows = []
+    if not rows:
+        # A link to a YouTube video has no stored pages: serve the video's own thumbnail as its single preview. It goes
+        # through the same read scoping, lock rule and width handling as a stored page (the checks above already ran).
+        try:
+            lk = supabase.table("resources").select("content_type,content").eq("id", resource_id).eq("content_type", "link").execute().data
+            vid = _youtube_video_id(lk[0].get("content")) if lk else None
+            img = await _fetch_youtube_thumbnail(vid) if vid else None
+            if img:
+                rows = [{"page_order": 1, "image": _preview_thumbnail(f"yt:{vid}", 1, img, PREVIEW_FULL_WIDTH if width is None else max(PREVIEW_MIN_WIDTH, min(width, PREVIEW_FULL_WIDTH)))}]
+                return {"resource_id": resource_id, "mime": "image/jpeg", "previews": rows}
+        except Exception as e:
+            logger.warning(f"[resource-previews] youtube thumbnail failed for {resource_id}: {type(e).__name__}")
     if width is not None and width < PREVIEW_FULL_WIDTH:
         w = max(PREVIEW_MIN_WIDTH, width)
         rows = [{"page_order": x["page_order"], "image": _preview_thumbnail(resource_id, x["page_order"], x["image"], w)} for x in rows]
