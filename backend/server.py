@@ -25369,6 +25369,7 @@ async def stripe_webhook(request: Request):
 # endpoint stays as a manual trigger. The deletion itself is the Postgres function public.purge_user_account (one
 # transaction; see ~/Desktop/account-deletion/01_purge_user_account.sql), so a failure never leaves half-deleted data.
 ACCOUNT_DELETION_GRACE_DAYS = 7
+ACCOUNT_PURGE_MAX_PER_RUN = 10   # safety cap per daily run
 
 @api_router.post("/account/delete-request")
 async def request_account_deletion(request: Request):
@@ -25480,10 +25481,16 @@ def _purge_due_accounts(dry_run: bool = False, only_user_ids: Optional[list] = N
     (a failure there skips the account, nothing else touched, retried next run), then the one-transaction database purge.
     dry_run only reports what would be deleted (Stripe untouched, every database change rolled back)."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=ACCOUNT_DELETION_GRACE_DAYS)).isoformat()
-    q = supabase.table("users").select("user_id,role,email,stripe_customer_id").not_.is_("deletion_requested_at", "null").lte("deletion_requested_at", cutoff)
+    # Only a real deletion request older than the wait can be picked up; oldest first.
+    q = supabase.table("users").select("user_id,role,email,stripe_customer_id").not_.is_("deletion_requested_at", "null").lte("deletion_requested_at", cutoff).order("deletion_requested_at")
     due = q.execute().data or []
     if only_user_ids is not None:
         due = [u for u in due if u["user_id"] in only_user_ids]
+    due_total = len(due)
+    # Safety cap: at most ACCOUNT_PURGE_MAX_PER_RUN accounts per run; the rest wait for the next run.
+    due = due[:ACCOUNT_PURGE_MAX_PER_RUN]
+    if due_total > len(due):
+        logger.warning(f"[account-purge] {due_total} accounts are due but at most {ACCOUNT_PURGE_MAX_PER_RUN} are purged per run; {due_total - len(due)} wait for the next run - check this is expected")
     purged, failed, report = [], [], {}
     for u in due:
         uid = u["user_id"]
@@ -25501,11 +25508,14 @@ def _purge_due_accounts(dry_run: bool = False, only_user_ids: Optional[list] = N
             if not dry_run:
                 res["creature_images_removed"] = _remove_creature_images(images)
             report[uid] = {"role": u.get("role"), **res}
+            counts = {k: v for k, v in res.items() if isinstance(v, int) and not isinstance(v, bool) and v}
+            logger.info(f"[account-purge] {'dry run ' if dry_run else ''}user_id={uid} role={u.get('role')} counts={counts}")
             purged.append(uid)
         except Exception as e:
-            logger.error(f"[account-purge] {'dry run ' if dry_run else ''}failed for {uid}: {e}")
+            # user_id and error kind only: a database error message can quote the row it was working on
+            logger.error(f"[account-purge] {'dry run ' if dry_run else ''}failed for user_id={uid}: {type(e).__name__} {str(getattr(e, 'code', '') or '')[:10]}")
             failed.append({"user_id": uid, "error": str(e)[:200]})
-    return {"dry_run": dry_run, "purged": purged, "purged_count": len(purged), "failed": failed, "report": report}
+    return {"dry_run": dry_run, "purged": purged, "purged_count": len(purged), "failed": failed, "due_total": due_total, "deferred": due_total - len(due), "report": report}
 
 @api_router.post("/admin/process-account-deletions")
 async def process_account_deletions(request: Request, dry_run: bool = False):
