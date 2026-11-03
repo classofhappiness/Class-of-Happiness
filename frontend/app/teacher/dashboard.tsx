@@ -197,7 +197,10 @@ export default function TeacherDashboardScreen() {
   }, [supportRequestsList]);
 
   const pulseColor = arrivalFlash ? EMOTION_COLOURS.green
-    : hasPendingIncident ? EMOTION_COLOURS.red : hasPendingStandard ? EMOTION_COLOURS.yellow : EMOTION_COLOURS.green;
+    : hasPendingIncident ? EMOTION_COLOURS.red : hasPendingStandard ? EMOTION_COLOURS.yellow
+    // Nov 3: only "Seen" (acknowledged, no Yes/No) left open - keep the request's original light, never green.
+    : openSupportRequests.some(r => r.is_incident) ? EMOTION_COLOURS.red : EMOTION_COLOURS.yellow;
+  const hasPendingAny = hasPendingIncident || hasPendingStandard;
   const pulseOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (arrivalFlash) {
@@ -209,6 +212,7 @@ export default function TeacherDashboardScreen() {
       return () => oneShot.stop();
     }
     if (!hasOpenRequest) { pulseOpacity.setValue(0); return; }
+    if (!hasPendingAny) { pulseOpacity.setValue(0.14); return; } // Seen: same light, held still - no pulse
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseOpacity, { toValue: 0.22, duration: 2000, useNativeDriver: true }),
@@ -217,7 +221,7 @@ export default function TeacherDashboardScreen() {
     );
     loop.start();
     return () => loop.stop();
-  }, [hasOpenRequest, arrivalFlash]);
+  }, [hasOpenRequest, hasPendingAny, arrivalFlash]);
 
   useEffect(() => {
     const fetchStrategyNames = async () => {
