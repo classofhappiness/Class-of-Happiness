@@ -434,8 +434,9 @@ export default function TeacherResourcesScreen() {
               }}
             >
               {/* Locked cards get the thumbnail too (small 240px teaser + lock badge); the lock icon until it loads. */}
-              {resource.content_type === 'link' ? (
-                // Link: an icon and the website name, never a preview image from another site.
+              {resource.content_type === 'link' && !(resource as any).link_is_youtube ? (
+                // Link: an icon and the website name, never a preview image from another site. (A YouTube link is the
+                // exception: the server fetches the video's thumbnail and serves it like a PDF page preview.)
                 <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: (resource as any).is_locked ? '#F5F5F5' : '#E8EAF6', alignItems: 'center', justifyContent: 'center', marginRight: 0 }}>
                   <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'link'} size={32} color={(resource as any).is_locked ? '#AAA' : '#5C6BC0'} />
                 </View>
@@ -443,8 +444,10 @@ export default function TeacherResourcesScreen() {
               <ResourceThumb
                 resourceId={resource.id}
                 locked={!!(resource as any).is_locked}
-                style={{ backgroundColor: (resource as any).is_locked ? '#F5F5F5' : '#FFEBEE', marginRight: 0 }}
-                fallback={<MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />}
+                style={{ backgroundColor: (resource as any).is_locked ? '#F5F5F5' : (resource.content_type === 'link' ? '#E8EAF6' : '#FFEBEE'), marginRight: 0 }}
+                fallback={resource.content_type === 'link'
+                  ? <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'link'} size={32} color={(resource as any).is_locked ? '#AAA' : '#5C6BC0'} />
+                  : <MaterialIcons name={(resource as any).is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={(resource as any).is_locked ? '#AAA' : '#F44336'} />}
               />
               )}
               <View style={styles.resourceContent}>
@@ -852,7 +855,7 @@ export default function TeacherResourcesScreen() {
               </View>
 
               {!!viewingResource && <ResourceDetailFacts facts={viewingResource as any} t={t} />}
-              {!!viewingResource && !(viewingResource as any).is_locked && viewingResource.content_type === 'pdf' && (
+              {!!viewingResource && !(viewingResource as any).is_locked && (viewingResource.content_type === 'pdf' || (viewingResource.content_type === 'link' && !!(viewingResource as any).link_is_youtube)) && (
                 <PagePreviewStrip resourceId={viewingResource.id} t={t} />
               )}
 

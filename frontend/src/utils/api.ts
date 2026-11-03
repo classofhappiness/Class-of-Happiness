@@ -534,6 +534,7 @@ export interface Resource {
   content?: string;
   link_url?: string | null;
   link_host?: string | null;
+  link_is_youtube?: boolean; // the link is a YouTube video: the card shows the server-made thumbnail
   average_rating?: number;
   total_ratings?: number;
   pdf_filename?: string;
@@ -922,6 +923,7 @@ export interface TeacherResource {
   content?: string;
   link_url?: string | null;
   link_host?: string | null;
+  link_is_youtube?: boolean; // the link is a YouTube video: the card shows the server-made thumbnail
   pdf_filename?: string;
   created_by: string;
   created_by_name?: string;

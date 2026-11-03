@@ -17571,7 +17571,7 @@ def _attach_link_urls(items: list) -> list:
     """List queries leave out `content` (it can be megabytes of PDF). A link resource's content is
     just the URL, so it is fetched for link rows only and returned as link_url / link_host.
     Locked link resources do not get their address."""
-    link_ids = [r["id"] for r in items if r.get("content_type") == "link" and not r.get("is_locked")]
+    link_ids = [r["id"] for r in items if r.get("content_type") == "link"]   # locked rows too: only to flag YouTube, their address stays hidden
     urls = {}
     if link_ids:
         try:
@@ -17585,6 +17585,8 @@ def _attach_link_urls(items: list) -> list:
             continue
         url = urls.get(r.get("id"), "") if not r.get("is_locked") else ""
         r["link_url"] = url or None
+        # lets the app show the server-made video thumbnail on a YouTube link's card (locked ones too: small thumbnail only)
+        r["link_is_youtube"] = bool(_youtube_video_id(urls.get(r.get("id"), "")))
         host = ""
         try:
             host = (urlparse(url).hostname or "") if url else ""

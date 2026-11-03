@@ -367,14 +367,16 @@ export default function ResourcesScreen() {
                   the same real signal (is_global) teacher/resources.tsx already uses, so it's
                   correct regardless of category and shows consistently everywhere, not just
                   when a duplicate happened to survive from the old merge. */}
-              {resource.content_type === 'pdf' ? (
+              {resource.content_type === 'pdf' || (resource.content_type === 'link' && resource.link_is_youtube) ? (
                 // PDF: page-preview thumbnail (still, or slideshow when most in view) - locked cards get it too, as a
                 // small 240px teaser with a lock badge; the icon until it loads / if there are no previews.
                 <ResourceThumb
                   resourceId={resource.id}
                   locked={!!resource.is_locked}
                   style={!resource.is_global ? { backgroundColor: '#E8F5E9' } : undefined}
-                  fallback={<MaterialIcons name={resource.is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={resource.is_locked ? '#AAA' : '#F44336'} />}
+                  fallback={resource.content_type === 'link'
+                    ? <MaterialIcons name={resource.is_locked ? 'lock' : 'link'} size={32} color={resource.is_locked ? '#AAA' : '#5C6BC0'} />
+                    : <MaterialIcons name={resource.is_locked ? 'lock' : 'picture-as-pdf'} size={32} color={resource.is_locked ? '#AAA' : '#F44336'} />}
                 />
               ) : (
               <View style={[styles.resourceIcon, !resource.is_global && { backgroundColor: '#E8F5E9' }]}>

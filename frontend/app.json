@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "com.classofhappiness.app",
-      "versionCode": 20,
+      "versionCode": 21,
       "allowBackup": false,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
