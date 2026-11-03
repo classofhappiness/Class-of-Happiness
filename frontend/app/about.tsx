@@ -108,7 +108,7 @@ export default function AboutScreen() {
 
           <Text style={styles.privacyHeading}>{t('privacy_retention_heading') || 'Data Retention and Security'}</Text>
           <Text style={styles.legalText}>
-            {t('privacy_retention_text') || 'Student check-in data is retained for up to 12 months. Account data is deleted within 30 days of account closure. All data is transmitted over encrypted HTTPS connections. Passwords are never stored in plain text.'}
+            {t('privacy_retention_text') || 'Student check-in data is retained for up to 12 months. Account data is deleted within 7 days of account closure. All data is transmitted over encrypted HTTPS connections. Passwords are never stored in plain text.'}
           </Text>
 
           <Text style={styles.privacyHeading}>{t('privacy_full_policy_heading') || 'Full Privacy Policy'}</Text>

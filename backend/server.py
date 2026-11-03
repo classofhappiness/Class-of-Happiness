@@ -25364,6 +25364,11 @@ async def stripe_webhook(request: Request):
 #
 # Requires this migration to have been run first (this app has no DDL access from code):
 #   ALTER TABLE users ADD COLUMN deletion_requested_at timestamptz;
+#
+# Nov 3: the wait is now 7 days (was 30) and the purge runs by itself every day (see _account_purge_loop); the superadmin
+# endpoint stays as a manual trigger. The deletion itself is the Postgres function public.purge_user_account (one
+# transaction; see ~/Desktop/account-deletion/01_purge_user_account.sql), so a failure never leaves half-deleted data.
+ACCOUNT_DELETION_GRACE_DAYS = 7
 
 @api_router.post("/account/delete-request")
 async def request_account_deletion(request: Request):
@@ -25435,37 +25440,96 @@ async def request_account_deletion(request: Request):
     # blocked via deletion_requested_at (see /auth/email-login and /auth/google).
     supabase.table("user_sessions").delete().eq("user_id", user["user_id"]).execute()
 
-    return {"status": "deletion_scheduled", "purge_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()}
+    return {"status": "deletion_scheduled", "purge_at": (datetime.now(timezone.utc) + timedelta(days=ACCOUNT_DELETION_GRACE_DAYS)).isoformat()}
 
+
+def _delete_stripe_customer(customer_id: str) -> tuple:
+    """Permanently deletes the Stripe customer (Stripe: cannot be undone, cancels any active subscription, removes card details;
+    invoices and payment history stay retrievable on the deleted customer for tax records). A customer that no longer exists
+    counts as done. Returns (ok, detail)."""
+    if not customer_id or not STRIPE_SECRET_KEY:
+        return True, "no stripe customer"
+    try:
+        stripe_lib.Customer.delete(customer_id)
+        return True, "deleted"
+    except Exception as e:
+        if "No such customer" in str(e) or getattr(e, "code", None) == "resource_missing":
+            return True, "already gone"
+        return False, f"{type(e).__name__}: {str(e)[:120]}"
+
+def _remove_creature_images(rows: list) -> int:
+    """Removes the stored images of creature submissions the purge deleted. Best effort: the database rows are already gone."""
+    marker = "/public/creature-images/"
+    paths = []
+    for r in rows or []:
+        for field in ("stage1_url", "stage2_url", "stage3_url", "stage4_url"):
+            url = (r or {}).get(field) or ""
+            if marker in url:
+                p = url.split(marker, 1)[1].split("?")[0]
+                if p and ".." not in p and not p.startswith("/") and "\\" not in p and "//" not in p and all(ord(ch) > 31 for ch in p):
+                    paths.append(p)
+    if paths:
+        try:
+            supabase.storage.from_("creature-images").remove(paths)
+        except Exception as e:
+            logger.warning(f"[account-purge] image cleanup failed for {len(paths)} files: {e}")
+    return len(paths)
+
+def _purge_due_accounts(dry_run: bool = False, only_user_ids: Optional[list] = None) -> dict:
+    """Purges every account whose deletion wait (ACCOUNT_DELETION_GRACE_DAYS) has passed. Per account: Stripe customer first
+    (a failure there skips the account, nothing else touched, retried next run), then the one-transaction database purge.
+    dry_run only reports what would be deleted (Stripe untouched, every database change rolled back)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=ACCOUNT_DELETION_GRACE_DAYS)).isoformat()
+    q = supabase.table("users").select("user_id,role,email,stripe_customer_id").not_.is_("deletion_requested_at", "null").lte("deletion_requested_at", cutoff)
+    due = q.execute().data or []
+    if only_user_ids is not None:
+        due = [u for u in due if u["user_id"] in only_user_ids]
+    purged, failed, report = [], [], {}
+    for u in due:
+        uid = u["user_id"]
+        try:
+            if not dry_run:
+                ok, detail = _delete_stripe_customer(u.get("stripe_customer_id"))
+                if not ok:
+                    raise RuntimeError(f"Stripe customer not deleted ({detail})")
+            res = supabase.rpc("purge_user_account", {"p_user_id": uid, "p_dry_run": bool(dry_run)}).execute().data
+            if isinstance(res, list):
+                res = res[0] if res else {}
+            if not isinstance(res, dict) or res.get("error"):
+                raise RuntimeError(f"purge function returned {res}")
+            images = res.pop("creature_images_to_remove", []) or []
+            if not dry_run:
+                res["creature_images_removed"] = _remove_creature_images(images)
+            report[uid] = {"role": u.get("role"), **res}
+            purged.append(uid)
+        except Exception as e:
+            logger.error(f"[account-purge] {'dry run ' if dry_run else ''}failed for {uid}: {e}")
+            failed.append({"user_id": uid, "error": str(e)[:200]})
+    return {"dry_run": dry_run, "purged": purged, "purged_count": len(purged), "failed": failed, "report": report}
 
 @api_router.post("/admin/process-account-deletions")
-async def process_account_deletions(request: Request):
-    """Call this via a scheduled job (e.g. a daily cron hitting this endpoint) - hard-deletes
-    any account whose 30-day grace period from /account/delete-request has elapsed. Only
-    parent/teacher accounts can ever have deletion_requested_at set (see above), so this
-    never needs to handle school_admin/superadmin cascades."""
+async def process_account_deletions(request: Request, dry_run: bool = False):
+    """Manual trigger for the same job that runs by itself every day (_account_purge_loop): permanently deletes every account
+    whose 7-day wait has passed. ?dry_run=true only lists what would be deleted, with row counts per table, and changes nothing."""
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403)
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    due = supabase.table("users").select("user_id,role").not_.is_("deletion_requested_at", "null").lte("deletion_requested_at", cutoff).execute()
-    purged, failed = [], []
-    for u in (due.data or []):
-        uid = u["user_id"]
+    return await asyncio.to_thread(_purge_due_accounts, dry_run)
+
+ACCOUNT_PURGE_LOCK_KEY = "loop_lock::account_purge"
+
+async def _account_purge_loop():
+    """Runs the purge once a day, by itself. The claim lives in the database (same cross-worker lock as the other daily jobs),
+    so two workers never both run it and a restart neither skips a day nor runs it twice in one day."""
+    await asyncio.sleep(180)
+    while True:
         try:
-            if u.get("role") == "parent":
-                supabase.table("family_zone_logs").delete().eq("user_id", uid).execute()
-                supabase.table("family_members").delete().eq("user_id", uid).execute()
-                supabase.table("parent_links").delete().eq("parent_user_id", uid).execute()
-                supabase.table("custom_helpers").delete().eq("user_id", uid).execute()
-                supabase.table("family_assigned_strategies").delete().eq("parent_user_id", uid).execute()
-            supabase.table("user_sessions").delete().eq("user_id", uid).execute()
-            supabase.table("users").delete().eq("user_id", uid).execute()
-            purged.append(uid)
+            if await _try_claim_recurring_tick(ACCOUNT_PURGE_LOCK_KEY, min_interval_seconds=23 * 3600):
+                result = await asyncio.to_thread(_purge_due_accounts, False)
+                logger.info(f"[account-purge] pid={os.getpid()} purged={result['purged_count']} failed={len(result['failed'])}")
         except Exception as e:
-            logger.error(f"Account purge failed for {uid}: {e}")
-            failed.append(uid)
-    return {"purged": purged, "purged_count": len(purged), "failed": failed}
+            logger.error(f"[account-purge] loop error: {e}")
+        await asyncio.sleep(3600)
 
 
 @api_router.get("/classrooms/join/{code}")
@@ -26712,6 +26776,7 @@ async def _start_support_requests_rebuzz():
     asyncio.create_task(_expired_sessions_cleanup_loop())   # fix51: guarded against the 2-worker double run by a file lock
     asyncio.create_task(_school_renewal_reminder_loop())
     asyncio.create_task(_school_checkin_nudge_loop())
+    asyncio.create_task(_account_purge_loop())   # Nov 3: daily automatic account deletion (7 days after the request)
 
 # Real fix Aug 18: moved to the true end of the file. Was previously
 # called mid-file, silently orphaning every route defined after that

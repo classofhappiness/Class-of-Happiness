@@ -191,7 +191,7 @@ export default function SettingsScreen() {
     }
   };
 
-  // Account deletion (soft-delete, 30-day grace period — see POST /account/delete-request)
+  // Account deletion (soft-delete, 7-day grace period — see POST /account/delete-request)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -234,7 +234,7 @@ export default function SettingsScreen() {
       if (res.ok) {
         Alert.alert(
           t('account_scheduled_deletion_title') || 'Account scheduled for deletion',
-          t('account_scheduled_deletion_desc') || 'Your account has been deactivated and will be permanently deleted in 30 days. Contact jono@classofhappiness.com if you change your mind.',
+          t('account_scheduled_deletion_desc') || 'Your account has been deactivated and will be permanently deleted in 7 days. Contact jono@classofhappiness.com if you change your mind.',
           [{ text: t('done') || 'OK', onPress: async () => { await logout(); router.replace('/'); } }]
         );
       } else {
@@ -256,7 +256,7 @@ export default function SettingsScreen() {
   const handleDeleteAccountConfirm = () => {
     Alert.alert(
       t('delete_account_confirm_title') || 'Delete your account?',
-      t('delete_account_confirm_desc') || 'This deactivates your account immediately and permanently deletes your data in 30 days. This cannot be undone after that. Are you sure?',
+      t('delete_account_confirm_desc') || 'This deactivates your account immediately and permanently deletes your data in 7 days. This cannot be undone after that. Are you sure?',
       [
         { text: t('cancel'), style: 'cancel' },
         {
@@ -1335,7 +1335,7 @@ export default function SettingsScreen() {
             {showDeleteAccount && (
               <View style={styles.trialCodeContainer}>
                 <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, lineHeight: 18 }}>
-                  {t('delete_account_warning_1') || 'Deleting your account deactivates it immediately and permanently removes your personal data after a 30-day grace period.'}
+                  {t('delete_account_warning_1') || 'Deleting your account deactivates it immediately and permanently removes your personal data after a 7-day grace period.'}
                   {user?.role === 'teacher' ? ' ' + (t('delete_account_warning_teacher') || 'Your classrooms and students will be reassigned to your school (requires a linked school account - contact support if you\'re not linked to one).') : ''}
                   {' '}{t('delete_account_warning_2') || 'Confirm with your password, or with Google if that\'s how you sign in.'}
                 </Text>
