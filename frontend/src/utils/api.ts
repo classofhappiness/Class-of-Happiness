@@ -1479,3 +1479,71 @@ export const teacherPersonalStrategiesApi = {
   remove: (id: string): Promise<any> =>
     apiRequest(`/teacher/personal-strategies/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
+
+// Nov 4 (build 22): the parent "My Wellbeing" lock and the teacher check-in lock. Both used to
+// keep a plain-text 4-digit PIN in this device's AsyncStorage with an unverified "Forgot PIN?"
+// that just deleted it; now the PIN hash, the recovery hint and the attempt counters live
+// server-side in wellbeing_locks. The plain PIN and the plain hint answer are sent to set or to
+// prove identity and are never stored locally, never returned, and never logged.
+//
+// scope: 'teacher' for a teacher's own check-in lock, 'family:<family_member_id>' for one adult
+// family member's wellbeing screen - one lock each, matching the per-member keys this replaces.
+export type WellbeingHintPrompt = 'pet' | 'hobby' | 'place';
+
+export interface WellbeingLockState {
+  // 'unavailable' means the wellbeing_locks migration has not been run yet; callers fall back
+  // to the old device-local lock rather than shutting people out of their own data.
+  storage: 'ok' | 'unavailable';
+  configured: boolean;
+  hint_prompt: WellbeingHintPrompt | null;
+  // True for a lock created before hints existed - the hint reset path stays closed until one
+  // is added, and the account password stands in meanwhile.
+  needs_hint: boolean;
+  locked_seconds: number;
+  can_use_account_password: boolean;
+}
+
+const wbScope = (scope: string) => encodeURIComponent(scope);
+
+export const wellbeingLockApi = {
+  getState: (scope: string): Promise<WellbeingLockState> =>
+    apiRequest(`/wellbeing-lock/${wbScope(scope)}`),
+
+  /** Create the lock, or change a PIN you already know (current_pin then required). */
+  set: (scope: string, data: { pin: string; hint_prompt: WellbeingHintPrompt; hint_answer: string; current_pin?: string }): Promise<{ status: string; hint_prompt: string }> =>
+    apiRequest(`/wellbeing-lock/${wbScope(scope)}/set`, { method: 'POST', body: JSON.stringify(data) }),
+
+  /** Attach a hint to a lock that predates hints, proving the PIN already in use. */
+  addHint: (scope: string, data: { current_pin: string; hint_prompt: WellbeingHintPrompt; hint_answer: string }): Promise<{ status: string; hint_prompt: string }> =>
+    apiRequest(`/wellbeing-lock/${wbScope(scope)}/add-hint`, { method: 'POST', body: JSON.stringify(data) }),
+
+  /**
+   * Move a pre-build-22 device-local PIN onto the server with no hint yet, so an existing
+   * user is never held out of their own data by a recovery question they decline (item 3).
+   * Creates only - it never overwrites a lock that already exists.
+   */
+  migrate: (scope: string, pin: string): Promise<{ status: string; needs_hint: boolean }> =>
+    apiRequest(`/wellbeing-lock/${wbScope(scope)}/migrate`, { method: 'POST', body: JSON.stringify({ pin }) }),
+
+  verify: (scope: string, pin: string): Promise<{ status: string; needs_hint: boolean }> =>
+    apiRequest(`/wellbeing-lock/${wbScope(scope)}/verify`, { method: 'POST', body: JSON.stringify({ pin }) }),
+
+  /**
+   * Forgotten PIN. Exactly one proof is accepted: hint_answer once a hint exists, otherwise
+   * account_password while the lock is still hintless. hint_prompt/hint_answer_new optionally
+   * ride along so an account coming through the password bridge stops being hintless.
+   */
+  reset: (scope: string, data: { new_pin: string; hint_answer?: string; account_password?: string; hint_prompt?: WellbeingHintPrompt; hint_answer_new?: string }): Promise<{ status: string; hint_prompt: string | null }> =>
+    apiRequest(`/wellbeing-lock/${wbScope(scope)}/reset`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+/**
+ * The backend returns machine-readable details (`wellbeing_wrong_pin|3`) so the app can say
+ * what happened in the user's own language - same shape as the existing `free_tier_limit|`
+ * convention. Returns the translation key plus whatever number came with it.
+ */
+export function parseWellbeingLockError(e: any): { key: string; count: number } {
+  const raw = String(e?.message || '');
+  const [code, num] = raw.split('|');
+  return { key: code || 'error', count: Number(num) || 0 };
+}

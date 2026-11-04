@@ -17328,6 +17328,373 @@ async def reset_admin_pin_request(request: Request):
     _issue_login_code(user, email)
     return {"status": "code_required", "email": email}
 
+# ================== WELLBEING LOCK (parent "My Wellbeing" + teacher check-in) ==================
+# Real security feature Nov 4 (build 22): before this, both locks were a 4-digit PIN kept in
+# the device's own AsyncStorage IN PLAIN TEXT (wellbeing_pin_<memberId> / teacher_checkin_pin),
+# nothing was ever stored server-side, and "Forgot PIN?" simply deleted the key - no identity
+# check of any kind. Anyone holding the unlocked phone could clear the PIN, set their own, and
+# read every private entry; reinstalling the app did the same thing with no prompt at all.
+# There was no limit on wrong attempts anywhere.
+#
+# Now: the PIN hash, a recovery hint (one of three fixed prompts + a salted hash of a one-word
+# answer) and the attempt counters all live in public.wellbeing_locks, one row per lock. The
+# plain PIN and the plain answer are never stored, never logged, and never returned to a
+# client - only the chosen PROMPT is ever read back.
+#
+# Migration (run once, by Jono - scripts/wellbeing-lock/01_wellbeing_locks.sql). Until it is
+# run, every endpoint here reports storage="unavailable" and the app deliberately falls back
+# to the old device-local behaviour rather than locking people out of their own data. Nothing
+# in this feature takes effect before that migration lands.
+WELLBEING_HINT_PROMPTS = ("pet", "hobby", "place")
+WELLBEING_PIN_PATTERN = re.compile(r"^\d{4}$")
+WELLBEING_MAX_ATTEMPTS = 5
+WELLBEING_LOCKOUT_MINUTES = 15
+
+
+def _wellbeing_normalise_answer(answer: str) -> str:
+    """Trim + lowercase, so "  Rex " and "rex" are the same answer. casefold() rather than
+    lower() because the app ships in 10 languages - lower() leaves German ß and several
+    Cyrillic/Greek forms unequal to what the user would consider the same word. Applied
+    identically when setting and when verifying, so the two can never disagree."""
+    return (answer or "").strip().casefold()
+
+
+def _wellbeing_answer_is_one_word(answer: str) -> bool:
+    """One word, as the UI asks for: no internal whitespace, and something actually there."""
+    normalised = _wellbeing_normalise_answer(answer)
+    return bool(normalised) and len(normalised) <= 40 and not re.search(r"\s", normalised)
+
+
+async def _wellbeing_scope_owner_ok(user: dict, scope: str) -> bool:
+    """Every row is keyed by the caller's own user_id, so a scope can never reach another
+    account's lock. This check is about the scope being a REAL lock for this caller:
+    'teacher' (their own check-in screen) or 'family:<id>' for a family member they own -
+    so a typo or a crafted scope can't quietly create an orphan lock row."""
+    if scope == "teacher":
+        return True
+    if not scope.startswith("family:"):
+        return False
+    member_id = scope.split(":", 1)[1]
+    if not member_id:
+        return False
+    try:
+        fm = supabase.table("family_members").select("id,user_id").eq("id", member_id).execute().data or []
+    except Exception as e:
+        logger.warning(f"[wellbeing-lock] family_members lookup failed for scope {scope}: {e}")
+        return False
+    return bool(fm) and fm[0].get("user_id") == user.get("user_id")
+
+
+def _wellbeing_lock_get(user_id: str, scope: str):
+    """Returns (row_or_None, storage_ok). storage_ok is False only when the table itself
+    isn't reachable (migration not run yet) - the caller then degrades instead of 500ing."""
+    try:
+        res = supabase.table("wellbeing_locks").select("*").eq("user_id", user_id).eq("scope", scope).execute()
+        return ((res.data or [None])[0], True)
+    except Exception as e:
+        logger.warning(f"[wellbeing-lock] table unavailable (migration not run?): {e}")
+        return (None, False)
+
+
+def _wellbeing_locked_seconds(row: dict) -> int:
+    """Seconds remaining on an active lockout, 0 if not locked."""
+    locked_until = (row or {}).get("locked_until")
+    if not locked_until:
+        return 0
+    try:
+        until = datetime.fromisoformat(str(locked_until).replace("Z", "+00:00"))
+    except Exception as e:
+        logger.debug(f"[wellbeing-lock] could not parse locked_until: {e}")
+        return 0
+    remaining = (until - datetime.now(timezone.utc)).total_seconds()
+    return int(remaining) if remaining > 0 else 0
+
+
+def _wellbeing_guard_lockout(row: dict):
+    """429 with the real seconds remaining, so the app can say "try again in N minutes"
+    in the user's own language instead of showing a bare English string."""
+    remaining = _wellbeing_locked_seconds(row)
+    if remaining > 0:
+        raise HTTPException(status_code=429, detail=f"wellbeing_locked|{remaining}")
+
+
+def _wellbeing_register_failure(user_id: str, scope: str, row: dict) -> int:
+    """Count a wrong PIN or a wrong hint answer. Both share one counter per lock, matching
+    /auth/verify-login-pin's "5 failed attempts - either factor" policy. Returns tries left.
+
+    Fails soft, same as _register_pin_failure: the credential check itself is the real
+    boundary and is enforced regardless, so a missing migration degrades to "no throttling"
+    rather than 500ing every unlock attempt."""
+    attempts = (row.get("failed_attempts") or 0) + 1
+    update = {"failed_attempts": attempts, "updated_at": datetime.now(timezone.utc).isoformat()}
+    if attempts >= WELLBEING_MAX_ATTEMPTS:
+        update["failed_attempts"] = 0
+        update["locked_until"] = (datetime.now(timezone.utc) + timedelta(minutes=WELLBEING_LOCKOUT_MINUTES)).isoformat()
+    try:
+        supabase.table("wellbeing_locks").update(update).eq("user_id", user_id).eq("scope", scope).execute()
+    except Exception as e:
+        # No user_id/scope/answer in this line - it must never become a record of who was
+        # guessing what.
+        logger.warning(f"[SECURITY] could not persist wellbeing lock failure count: {e}")
+    return max(0, WELLBEING_MAX_ATTEMPTS - attempts)
+
+
+def _wellbeing_clear_failures(user_id: str, scope: str):
+    try:
+        supabase.table("wellbeing_locks").update({
+            "failed_attempts": 0, "locked_until": None,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).eq("scope", scope).execute()
+    except Exception as e:
+        logger.warning(f"[wellbeing-lock] could not clear failure state: {e}")
+
+
+async def _wellbeing_require_scope(request: Request, scope: str) -> dict:
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not await _wellbeing_scope_owner_ok(user, scope):
+        raise HTTPException(status_code=404, detail="Lock not found")
+    return user
+
+
+@api_router.get("/wellbeing-lock/{scope}")
+async def get_wellbeing_lock(scope: str, request: Request):
+    """What the lock screen needs to render, and nothing more: whether a PIN exists, which
+    prompt was chosen (never the answer), whether a hint is still missing, and any lockout
+    still running. No hash ever leaves the server."""
+    user = await _wellbeing_require_scope(request, scope)
+    row, storage_ok = _wellbeing_lock_get(user["user_id"], scope)
+    if not storage_ok:
+        return {"storage": "unavailable", "configured": False, "hint_prompt": None,
+                "needs_hint": False, "locked_seconds": 0, "can_use_account_password": False}
+    return {
+        "storage": "ok",
+        "configured": bool(row and row.get("pin_hash")),
+        "hint_prompt": (row or {}).get("hint_prompt"),
+        # Item 3: an account that set a PIN before this feature existed has no hint, so the
+        # hint reset path is closed to it until one is added.
+        "needs_hint": bool(row and row.get("pin_hash") and not row.get("hint_hash")),
+        "locked_seconds": _wellbeing_locked_seconds(row or {}),
+        # Whether the legacy fallback is actually usable for this account: a Google-OAuth
+        # account with no portal_password set has no account password to check against.
+        "can_use_account_password": bool(user.get("portal_password")),
+    }
+
+
+@api_router.post("/wellbeing-lock/{scope}/set")
+async def set_wellbeing_lock(scope: str, request: Request):
+    """Create the lock, or change the PIN of an existing one. A hint is REQUIRED here - that
+    is the point of this change; a lock with no recovery answer is what item 3 has to clean
+    up after. Changing an existing PIN requires the current one, so possession of an unlocked
+    phone is not on its own enough to take the lock over."""
+    user = await _wellbeing_require_scope(request, scope)
+    body = await request.json()
+    pin = (body.get("pin") or "").strip()
+    hint_prompt = (body.get("hint_prompt") or "").strip()
+    hint_answer = body.get("hint_answer") or ""
+    current_pin = (body.get("current_pin") or "").strip()
+
+    if not WELLBEING_PIN_PATTERN.match(pin):
+        raise HTTPException(status_code=400, detail="wellbeing_pin_format")
+    if hint_prompt not in WELLBEING_HINT_PROMPTS:
+        raise HTTPException(status_code=400, detail="wellbeing_hint_prompt_invalid")
+    if not _wellbeing_answer_is_one_word(hint_answer):
+        raise HTTPException(status_code=400, detail="wellbeing_hint_answer_invalid")
+
+    row, storage_ok = _wellbeing_lock_get(user["user_id"], scope)
+    if not storage_ok:
+        raise HTTPException(status_code=503, detail="wellbeing_storage_unavailable")
+
+    if row and row.get("pin_hash"):
+        _wellbeing_guard_lockout(row)
+        if not current_pin or not verify_password(current_pin, row["pin_hash"]):
+            left = _wellbeing_register_failure(user["user_id"], scope, row)
+            raise HTTPException(status_code=401, detail=f"wellbeing_wrong_pin|{left}")
+
+    now = datetime.now(timezone.utc).isoformat()
+    record = {
+        "user_id": user["user_id"],
+        "scope": scope,
+        "pin_hash": hash_password(pin),
+        "hint_prompt": hint_prompt,
+        "hint_hash": hash_password(_wellbeing_normalise_answer(hint_answer)),
+        "failed_attempts": 0,
+        "locked_until": None,
+        "updated_at": now,
+    }
+    if row:
+        supabase.table("wellbeing_locks").update(record).eq("user_id", user["user_id"]).eq("scope", scope).execute()
+    else:
+        record["created_at"] = now
+        supabase.table("wellbeing_locks").insert(record).execute()
+    return {"status": "ok", "hint_prompt": hint_prompt}
+
+
+@api_router.post("/wellbeing-lock/{scope}/add-hint")
+async def add_wellbeing_lock_hint(scope: str, request: Request):
+    """Item 3: an account that already had a PIN before this feature shipped gets prompted to
+    add a hint right after it unlocks with the PIN it already knows. Requires that current
+    PIN - otherwise whoever is holding the phone could attach their own recovery answer to
+    someone else's lock, which would be a worse hole than the one this feature closes."""
+    user = await _wellbeing_require_scope(request, scope)
+    body = await request.json()
+    current_pin = (body.get("current_pin") or "").strip()
+    hint_prompt = (body.get("hint_prompt") or "").strip()
+    hint_answer = body.get("hint_answer") or ""
+
+    if hint_prompt not in WELLBEING_HINT_PROMPTS:
+        raise HTTPException(status_code=400, detail="wellbeing_hint_prompt_invalid")
+    if not _wellbeing_answer_is_one_word(hint_answer):
+        raise HTTPException(status_code=400, detail="wellbeing_hint_answer_invalid")
+
+    row, storage_ok = _wellbeing_lock_get(user["user_id"], scope)
+    if not storage_ok:
+        raise HTTPException(status_code=503, detail="wellbeing_storage_unavailable")
+    if not row or not row.get("pin_hash"):
+        raise HTTPException(status_code=404, detail="wellbeing_no_lock")
+
+    _wellbeing_guard_lockout(row)
+    if not current_pin or not verify_password(current_pin, row["pin_hash"]):
+        left = _wellbeing_register_failure(user["user_id"], scope, row)
+        raise HTTPException(status_code=401, detail=f"wellbeing_wrong_pin|{left}")
+
+    supabase.table("wellbeing_locks").update({
+        "hint_prompt": hint_prompt,
+        "hint_hash": hash_password(_wellbeing_normalise_answer(hint_answer)),
+        "failed_attempts": 0,
+        "locked_until": None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user["user_id"]).eq("scope", scope).execute()
+    return {"status": "ok", "hint_prompt": hint_prompt}
+
+
+@api_router.post("/wellbeing-lock/{scope}/migrate")
+async def migrate_wellbeing_lock(scope: str, request: Request):
+    """Item 3, first half: move a PIN that until now only existed in this device's
+    AsyncStorage onto the server, WITHOUT demanding a hint in the same breath.
+
+    The app calls this the moment it has verified a PIN against the device's own old
+    plain-text copy, and then prompts for a hint - which the person may decline, exactly as
+    item 3 describes ("until then make the reset path require their account login password").
+    A hint is still mandatory for a brand-new lock; this path exists only so an existing user
+    is never held out of their own wellbeing data by a question they would rather skip.
+
+    Only ever creates a row, never touches one that exists - so it cannot be used to drop a
+    hint that has already been set, or to overwrite a PIN without knowing the current one.
+    An account could of course call this directly to give itself a hintless lock, but it could
+    equally set one with a hint: the only thing that changes is its own recovery options.
+    """
+    user = await _wellbeing_require_scope(request, scope)
+    body = await request.json()
+    pin = (body.get("pin") or "").strip()
+    if not WELLBEING_PIN_PATTERN.match(pin):
+        raise HTTPException(status_code=400, detail="wellbeing_pin_format")
+
+    row, storage_ok = _wellbeing_lock_get(user["user_id"], scope)
+    if not storage_ok:
+        raise HTTPException(status_code=503, detail="wellbeing_storage_unavailable")
+    if row:
+        # Already server-side: nothing to migrate. Not an error - two devices racing to
+        # migrate the same lock is a perfectly ordinary thing to happen.
+        return {"status": "already_migrated", "needs_hint": not row.get("hint_hash")}
+
+    now = datetime.now(timezone.utc).isoformat()
+    supabase.table("wellbeing_locks").insert({
+        "user_id": user["user_id"], "scope": scope,
+        "pin_hash": hash_password(pin),
+        "hint_prompt": None, "hint_hash": None,
+        "failed_attempts": 0, "locked_until": None,
+        "created_at": now, "updated_at": now,
+    }).execute()
+    return {"status": "ok", "needs_hint": True}
+
+
+@api_router.post("/wellbeing-lock/{scope}/verify")
+async def verify_wellbeing_lock(scope: str, request: Request):
+    """Unlock. Throttled on the same counter as the reset path (5 tries, then 15 minutes) -
+    a 4-digit PIN is only 10,000 combinations, and before this change nothing anywhere
+    counted a wrong one."""
+    user = await _wellbeing_require_scope(request, scope)
+    body = await request.json()
+    pin = (body.get("pin") or "").strip()
+    row, storage_ok = _wellbeing_lock_get(user["user_id"], scope)
+    if not storage_ok:
+        raise HTTPException(status_code=503, detail="wellbeing_storage_unavailable")
+    if not row or not row.get("pin_hash"):
+        raise HTTPException(status_code=404, detail="wellbeing_no_lock")
+
+    _wellbeing_guard_lockout(row)
+    if not pin or not verify_password(pin, row["pin_hash"]):
+        left = _wellbeing_register_failure(user["user_id"], scope, row)
+        raise HTTPException(status_code=401, detail=f"wellbeing_wrong_pin|{left}")
+
+    _wellbeing_clear_failures(user["user_id"], scope)
+    return {"status": "ok", "needs_hint": not row.get("hint_hash")}
+
+
+@api_router.post("/wellbeing-lock/{scope}/reset")
+async def reset_wellbeing_lock(scope: str, request: Request):
+    """Items 2, 3 and 4: a forgotten PIN is only resettable by proving identity first, so a
+    brand-new PIN can no longer be used to walk into entries written under the old one.
+
+    Two accepted proofs, and never a third:
+      - the one-word hint answer (the normal path, once a hint exists);
+      - the account's own login password, but ONLY while this lock still has no hint
+        (item 3's bridge for accounts that predate the hint).
+    Both are throttled on the lock's shared counter: 5 wrong tries, then 15 minutes."""
+    user = await _wellbeing_require_scope(request, scope)
+    body = await request.json()
+    new_pin = (body.get("new_pin") or "").strip()
+    hint_answer = body.get("hint_answer") or ""
+    account_password = body.get("account_password") or ""
+    # Optional, so an account coming through the account-password bridge ends up with a real
+    # hint instead of staying hintless forever. Deliberately not mandatory: a rejected answer
+    # must never be the thing that blocks someone's only recovery route.
+    new_hint_prompt = (body.get("hint_prompt") or "").strip()
+    new_hint_answer = body.get("hint_answer_new") or ""
+
+    if not WELLBEING_PIN_PATTERN.match(new_pin):
+        raise HTTPException(status_code=400, detail="wellbeing_pin_format")
+
+    row, storage_ok = _wellbeing_lock_get(user["user_id"], scope)
+    if not storage_ok:
+        raise HTTPException(status_code=503, detail="wellbeing_storage_unavailable")
+    if not row or not row.get("pin_hash"):
+        raise HTTPException(status_code=404, detail="wellbeing_no_lock")
+
+    _wellbeing_guard_lockout(row)
+
+    if row.get("hint_hash"):
+        # Normal path. The account password is NOT accepted here: once a hint exists it is
+        # the agreed recovery factor, and leaving a second door open would mean the weaker
+        # of the two always decides.
+        if not verify_password(_wellbeing_normalise_answer(hint_answer), row["hint_hash"]):
+            left = _wellbeing_register_failure(user["user_id"], scope, row)
+            raise HTTPException(status_code=401, detail=f"wellbeing_wrong_answer|{left}")
+    else:
+        # Item 3's bridge. An account with no portal_password (most Google sign-ins) has no
+        # usable proof here at all - it is told to set an account password rather than being
+        # quietly handed a free reset.
+        if not user.get("portal_password"):
+            raise HTTPException(status_code=409, detail="wellbeing_needs_account_password")
+        if not account_password or not verify_password(account_password, user["portal_password"]):
+            left = _wellbeing_register_failure(user["user_id"], scope, row)
+            raise HTTPException(status_code=401, detail=f"wellbeing_wrong_account_password|{left}")
+
+    update = {
+        "pin_hash": hash_password(new_pin),
+        "failed_attempts": 0,
+        "locked_until": None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if new_hint_prompt in WELLBEING_HINT_PROMPTS and _wellbeing_answer_is_one_word(new_hint_answer):
+        update["hint_prompt"] = new_hint_prompt
+        update["hint_hash"] = hash_password(_wellbeing_normalise_answer(new_hint_answer))
+    supabase.table("wellbeing_locks").update(update).eq("user_id", user["user_id"]).eq("scope", scope).execute()
+    return {"status": "ok", "hint_prompt": update.get("hint_prompt", row.get("hint_prompt"))}
+
+
 @api_router.get("/resources/{resource_id}")
 async def get_resource(resource_id: str, request: Request):
     user = await get_current_user(request)

@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView as EdgeSafeAreaView } from 'react-native-safe-area-context';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
+import { WellbeingLock } from '../../src/components/WellbeingLock';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
@@ -116,19 +117,21 @@ export default function TeacherCheckInScreen() {
   const [newStrategyDesc, setNewStrategyDesc] = useState('');
   const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
   // Real fix Aug 23 (health check): these were declared much further down (originally right
-  // before handlePinDigit), but referenced here by the two effects below - pinUnlocked in
-  // particular sat inside a useEffect dependency array, which is evaluated eagerly during
+  // before the PIN handlers that build 22 moved into WellbeingLock), but referenced here by
+  // the two effects below - pinUnlocked in particular sat inside a useEffect dependency
+  // array, which is evaluated eagerly during
   // render (unlike an effect's callback body, which React defers) - a genuine
   // temporal-dead-zone ReferenceError on every mount, confirmed by tsc's TS2448/TS2454. Moved
   // up as one block, same relative order, so hook call order is unaffected.
   const [displayName, setDisplayName] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  // Nov 4 (build 22): the PIN screen, its new recovery question and its verified reset all
+  // live in the shared <WellbeingLock> this screen and parent/my-wellbeing.tsx both render.
+  // Before that, this lock kept a plain-text 4-digit PIN in AsyncStorage under the single
+  // global key 'teacher_checkin_pin' (not even per-account), with a "Forgot PIN?" that just
+  // deleted it. All this screen keeps now is "am I unlocked".
   const [pinUnlocked, setPinUnlocked] = useState(false);
-  const [pinStep, setPinStep] = useState<'enter'|'setup'|'confirm'>('enter');
-  const [pinInput, setPinInput] = useState('');
-  const [pinConfirm, setPinConfirm] = useState('');
-  const PIN_KEY = 'teacher_checkin_pin';
   const [weekExpanded, setWeekExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
@@ -141,10 +144,8 @@ export default function TeacherCheckInScreen() {
   useEffect(() => {
     if (user?.name) { setDisplayName(user.name); setNameInput(user.name); }
     else if (user?.email) { const n = user.email.split('@')[0].replace(/\./g,' ').replace(/\w/g,(c:string)=>c.toUpperCase()); setDisplayName(n); setNameInput(n); }
-    AsyncStorage.getItem(PIN_KEY).then(pin => {
-      if (pin) { setPinStep('enter'); }
-      else { setPinStep('setup'); }
-    });
+    // <WellbeingLock> asks the server what kind of lock this account has (and migrates the
+    // old device-local PIN on first unlock), so nothing here reads it from AsyncStorage.
   }, []);
 
   useEffect(() => {
@@ -517,56 +518,6 @@ export default function TeacherCheckInScreen() {
     } catch { Alert.alert(t('error') || 'Error', t('no_data_this_month') || 'No data for this month yet'); }
   };
 
-  const handlePinDigit = (d: string) => {
-    if (pinStep === 'setup') {
-      const next = pinInput + d;
-      if (next.length <= 4) {
-        setPinInput(next);
-        if (next.length === 4) setPinStep('confirm');
-      }
-    } else if (pinStep === 'confirm') {
-      const next = pinConfirm + d;
-      if (next.length <= 4) {
-        setPinConfirm(next);
-        if (next.length === 4) {
-          if (next === pinInput) {
-            AsyncStorage.setItem(PIN_KEY, pinInput);
-            setPinUnlocked(true);
-          } else {
-            Alert.alert(t('pins_do_not_match') || 'PINs do not match');
-            setPinInput(''); setPinConfirm(''); setPinStep('setup');
-          }
-        }
-      }
-    } else {
-      const next = pinInput + d;
-      if (next.length <= 4) {
-        setPinInput(next);
-        if (next.length === 4) {
-          AsyncStorage.getItem(PIN_KEY).then(stored => {
-            if (next === stored) { setPinUnlocked(true); }
-            else { Alert.alert(t('incorrect_pin') || 'Incorrect PIN'); setPinInput(''); }
-          });
-        }
-      }
-    }
-  };
-
-  const handlePinDelete = () => {
-    if (pinStep === 'confirm') setPinConfirm(c => c.slice(0,-1));
-    else setPinInput(p => p.slice(0,-1));
-  };
-
-  const handleResetPin = () => {
-    Alert.alert(t('wellbeing_pin_reset') || 'Reset PIN', t('reset_pin_confirm_desc') || 'Are you sure? You will need to create a new PIN.', [
-      { text: t('cancel') || 'Cancel', style: 'cancel' },
-      { text: t('reset') || 'Reset', style: 'destructive', onPress: async () => {
-        await AsyncStorage.removeItem(PIN_KEY);
-        setPinInput(''); setPinConfirm(''); setPinStep('setup');
-      }},
-    ]);
-  };
-
   const saveName = async () => {
     if (!nameInput.trim()) return;
     try {
@@ -583,43 +534,18 @@ export default function TeacherCheckInScreen() {
 
   const zoneConfig = selectedZone ? ZONES.find(z => z.id === selectedZone) : null;
 
+  // Shared with parent/my-wellbeing.tsx - same lock, same recovery question, same
+  // 5-tries/15-minute reset lockout, one implementation (build 22).
   if (!pinUnlocked) {
-    const current = pinStep === 'confirm' ? pinConfirm : pinInput;
     return (
-      <SafeAreaView style={{flex:1,backgroundColor:'white'}}>
-        <TouchableOpacity style={{padding:16}} onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:32}}>
-          <Text style={{fontSize:40,marginBottom:8}}>🔒</Text>
-          <Text style={{fontSize:20,fontWeight:'700',color:'#333',marginBottom:4}}>{t('teacher_checkin') || 'Teacher Check-in'}</Text>
-          <Text style={{fontSize:14,color:'#666',marginBottom:24,textAlign:'center'}}>
-            {pinStep === 'setup' ? (t('create_private_pin_desc') || 'Create a private PIN to protect your wellbeing data')
-            : pinStep === 'confirm' ? (t('confirm_your_pin') || 'Confirm your PIN')
-            : (t('wellbeing_pin_enter') || 'Enter your PIN')}
-          </Text>
-          <View style={{flexDirection:'row',gap:12,marginBottom:32}}>
-            {[0,1,2,3].map(i => (
-              <View key={i} style={{width:14,height:14,borderRadius:7,borderWidth:2,borderColor:'#5C6BC0',backgroundColor:current.length>i?'#5C6BC0':'transparent'}} />
-            ))}
-          </View>
-          <View style={{flexDirection:'row',flexWrap:'wrap',width:240,gap:8,justifyContent:'center'}}>
-            {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d,i) => (
-              <TouchableOpacity key={i}
-                style={{width:72,height:56,borderRadius:12,backgroundColor:d?'#F5F5F5':'transparent',alignItems:'center',justifyContent:'center',opacity:d?1:0}}
-                onPress={() => d==='⌫' ? handlePinDelete() : d && handlePinDigit(d)}
-                disabled={!d}>
-                <Text style={{fontSize:22,fontWeight:'600',color:'#333'}}>{d}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {pinStep === 'enter' && (
-            <TouchableOpacity onPress={handleResetPin} style={{marginTop:24}}>
-              <Text style={{color:'#5C6BC0',fontSize:14}}>{t('wellbeing_pin_forgot') || 'Forgot PIN?'}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </SafeAreaView>
+      <WellbeingLock
+        scope="teacher"
+        title={t('teacher_checkin') || 'Teacher Check-in'}
+        description={t('create_private_pin_desc') || 'Create a private PIN to protect your wellbeing data'}
+        onUnlocked={() => setPinUnlocked(true)}
+        onBack={() => router.back()}
+        t={t}
+      />
     );
   }
 
