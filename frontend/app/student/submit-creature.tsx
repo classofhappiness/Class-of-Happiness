@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image,
   TextInput, ScrollView, Alert, ActivityIndicator, Modal
@@ -253,7 +254,7 @@ export default function SubmitCreatureScreen() {
 
   // CODE SCREEN
   if (step === 'code') return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
+    <KeyboardSafeView style={{ flex: 1 }}><ScrollView keyboardShouldPersistTaps="handled" style={s.container} contentContainerStyle={s.content}>
       <TranslatedHeader title={t('creature_code_screen_title') || 'Enter your code'} showHome onBackPress={() => setStep('tutorial')} />
       <Text style={s.subtitle}>{t('creature_submit_get_code') || 'Get a code from your teacher or parent first.'}</Text>
       <TextInput style={s.codeInput} value={code} onChangeText={v => setCode(v.toUpperCase())}
@@ -264,12 +265,12 @@ export default function SubmitCreatureScreen() {
           ? <ActivityIndicator color="white" />
           : <Text style={s.btnTxt}>{t('continue_arrow') || 'Continue →'}</Text>}
       </TouchableOpacity>
-    </ScrollView>
+    </ScrollView></KeyboardSafeView>
   );
 
   // DETAILS SCREEN
   if (step === 'details') return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
+    <KeyboardSafeView style={{ flex: 1 }}><ScrollView keyboardShouldPersistTaps="handled" style={s.container} contentContainerStyle={s.content}>
       <TranslatedHeader title={t('creature_details_title') || 'Your creature details'} showHome onBackPress={() => setStep('code')} />
       <Text style={s.label}>{t('creature_name_label') || 'Creature Name'}</Text>
       <TextInput style={s.input} value={name} onChangeText={setName}
@@ -305,7 +306,7 @@ export default function SubmitCreatureScreen() {
         disabled={!emotion || !name} onPress={() => setStep('scope')}>
         <Text style={s.btnTxt}>{t('next_arrow') || 'Next →'}</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </ScrollView></KeyboardSafeView>
   );
 
   // SCOPE + COUNTRY SCREEN — real feature Aug 22 (item 1): who gets to see this creature, and

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View,
   Text,
@@ -1760,7 +1761,7 @@ export default function ParentDashboard() {
           separate, already-correct ongoing sharing-direction toggle, not a consent gate, and
           this new screen is additive, not a replacement for it. */}
       <Modal visible={showLinkModal} transparent animationType="slide" onRequestClose={() => { setShowLinkModal(false); setLinkConsentAccepted(false); }}>
-        <View style={styles.modalOverlay}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('link_child_school') || 'Link Child from School'}</Text>
@@ -1769,7 +1770,7 @@ export default function ParentDashboard() {
               </TouchableOpacity>
             </View>
             {!linkConsentAccepted ? (
-              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={true}>
+              <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 400 }} showsVerticalScrollIndicator={true}>
                 <Text style={styles.disclaimerTitle}>{t('link_consent_title') || "Share Your Child's Emotion Tracking?"}</Text>
                 <Text style={styles.disclaimerText}>{t('link_consent_line1') || "Entering a code from your child's school will connect their account here to their school record."}</Text>
                 <Text style={styles.disclaimerText}>{t('link_consent_line2') || "Once connected, you'll be able to see your child's school check-ins here at home."}</Text>
@@ -1821,12 +1822,12 @@ export default function ParentDashboard() {
               </>
             )}
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Add Family Member Modal */}
       <Modal visible={showAddFamilyModal} transparent animationType="slide" onRequestClose={() => setShowAddFamilyModal(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('add_family_member') || 'Add Family Member'}</Text>
@@ -2004,7 +2005,7 @@ export default function ParentDashboard() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Share to Teacher Modal */}
@@ -2076,7 +2077,7 @@ export default function ParentDashboard() {
 
       {/* Edit Family Member Modal */}
       <Modal visible={showEditFamilyModal} transparent animationType="slide" onRequestClose={() => setShowEditFamilyModal(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('edit_member') || 'Edit Family Member'}</Text>
@@ -2128,7 +2129,7 @@ export default function ParentDashboard() {
             {editMember.avatar_type === 'preset' && (
               <>
                 <Text style={styles.inputLabel}>{t('choose_icon') || 'Choose Icon'}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconScrollView}>
+                <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.iconScrollView}>
                   <View style={styles.iconGrid}>
                     {(presetAvatars || []).map((avatar) => (
                       <TouchableOpacity
@@ -2191,7 +2192,7 @@ export default function ParentDashboard() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
     </SafeAreaView>
   );

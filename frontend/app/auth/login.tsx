@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, ScrollView, Keyboard
@@ -235,11 +236,7 @@ export default function LoginScreen() {
       <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={[styles.backButton, { top: insets.top + 12 }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
       </TouchableOpacity>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.inner}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+      <KeyboardSafeView style={styles.inner}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -492,7 +489,7 @@ export default function LoginScreen() {
             </>
           )}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Linking, Image, Switch, AppState,
@@ -1497,6 +1498,61 @@ function DataExportCard({ authToken }: { authToken: string|null }) {
   );
 }
 
+// Superadmin-only: where School Package enquiries are emailed. Empty = the server's default
+// address. Same endpoints as the portal's Settings tab.
+function EnquiryEmailCard({ authToken }: { authToken: string|null }) {
+  const { t } = useApp();
+  const [value, setValue] = useState('');
+  const [effective, setEffective] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    apiCall('/admin/enquiry-email', authToken)
+      .then((d: any) => { setValue(d?.email || ''); setEffective(d?.effective_email || ''); })
+      .catch(() => {});
+  }, [authToken]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const d: any = await apiCall('/admin/enquiry-email', authToken, { method: 'PUT', body: JSON.stringify({ email: value.trim() }) });
+      setValue(d?.email || ''); setEffective(d?.effective_email || '');
+      Alert.alert(t('enquiry_email_saved') || 'Enquiry email saved');
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e?.message || '');
+    }
+    setBusy(false);
+  };
+
+  const sendTest = async () => {
+    setBusy(true);
+    try {
+      const d: any = await apiCall('/admin/enquiry-email/test', authToken, { method: 'POST' });
+      Alert.alert((t('enquiry_email_test_sent') || 'Test enquiry sent to {email}').replace('{email}', d?.sent_to || effective));
+    } catch (e: any) {
+      Alert.alert(t('error') || 'Error', e?.message || '');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <SectionCard title={t('enquiry_email_title') || 'Enquiry Email'} icon="email" color={INDIGO}>
+      <Text style={s.hint}>{t('enquiry_email_hint') || 'School Package enquiries are sent to this address. Leave it empty to use the default address.'}</Text>
+      {effective ? <Text style={[s.hint, { marginTop: 4 }]}>{(t('enquiry_email_current') || 'Currently sent to: {email}').replace('{email}', effective)}</Text> : null}
+      <TextInput style={[s.input, { marginTop: 8 }]} value={value} onChangeText={setValue} placeholder="name@example.com"
+        keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={!busy} />
+      <TouchableOpacity style={s.btn} onPress={save} disabled={busy}>
+        <MaterialIcons name="save" size={16} color="white" />
+        <Text style={s.btnText}>{t('save') || 'Save'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[s.btn, { marginTop: 8 }]} onPress={sendTest} disabled={busy}>
+        <MaterialIcons name="send" size={16} color="white" />
+        <Text style={s.btnText}>{t('enquiry_email_send_test') || 'Send Test Enquiry'}</Text>
+      </TouchableOpacity>
+    </SectionCard>
+  );
+}
+
 function SuperAdminSettings({ authToken, stats }: { authToken: string|null, stats: any }) {
   const { t } = useApp();
   return (
@@ -1506,6 +1562,7 @@ function SuperAdminSettings({ authToken, stats }: { authToken: string|null, stat
         <StatRow label={t('version') || 'Version'} value="2.1" icon="info" color={INDIGO} />
         <StatRow label={t('total_users') || 'Total users'} value={stats?.total_users} icon="people" color="#4CAF50" />
       </SectionCard>
+      <EnquiryEmailCard authToken={authToken} />
       <PromoCodesCard authToken={authToken} />
       <DataExportCard authToken={authToken} />
     </View>
@@ -2104,7 +2161,7 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
       {/* Reject-reason modal - React Native has no browser prompt(), unlike the portal's
           saGlobalReject. Real input, not a shortcut. */}
       <Modal visible={!!rejectTarget} transparent animationType="fade" onRequestClose={() => setRejectTarget(null)}>
-        <View style={s.modalOverlay}>
+        <KeyboardSafeView style={s.modalOverlay}>
           <View style={s.modalCard}>
             <Text style={s.cardTitle}>{t('reason_for_rejecting') || 'Reason for rejecting'}</Text>
             <Text style={[s.hint, { marginBottom: 8 }]}>{t('student_will_see_this') || 'The student will see this.'}</Text>
@@ -2118,7 +2175,7 @@ function CreatureModeration({ authToken }: { authToken: string|null }) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
     </View>
   );
@@ -3779,6 +3836,7 @@ export default function AdminDashboard() {
       {/* Content — scrollable. Real fix Aug 16: NestableScrollContainer, not plain
           ScrollView, so the Strategies tab's draggable list can coexist with this
           outer scroll instead of blocking it entirely. */}
+      <KeyboardSafeView style={{ flex: 1 }}>
       <NestableScrollContainer contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
         {tab === 'analytics' && (
@@ -3818,6 +3876,7 @@ export default function AdminDashboard() {
         )}
 
       </NestableScrollContainer>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

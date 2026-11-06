@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { 
   View, 
   Text, 
@@ -195,11 +196,8 @@ export default function CreateProfileScreen() {
     // Back = router.back(): every entry point opens this screen with router.push, so it returns to the caller.
     <View style={styles.container}>
       <TranslatedHeader title={t('add_profile_title') || 'Add Profile'} />
-      <KeyboardAvoidingView 
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardSafeView style={styles.keyboardView}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Name Input */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('name') || 'Name'}</Text>
@@ -320,7 +318,7 @@ export default function CreateProfileScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </View>
   );
 }

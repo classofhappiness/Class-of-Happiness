@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, ScrollView
@@ -70,11 +71,7 @@ export default function SignupScreen() {
       >
         <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
       </TouchableOpacity>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.inner}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+      <KeyboardSafeView style={styles.inner}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -182,7 +179,7 @@ export default function SignupScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

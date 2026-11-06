@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, Alert, ActivityIndicator, TextInput, Animated,
@@ -476,7 +477,8 @@ export default function SupportRequestScreen() {
         onBackPress={() => setStep(isClassroomLevel ? 'student' : 'type')}
         showHome
       />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <KeyboardSafeView style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
         {isClassroomIncident ? (
           <Text style={[styles.rowSub, styles.incidentText]}>{(t('support_request_incident_confirm') || '🚨 Immediate support needed in {classroom}.').replace('{classroom}', classroomName)}</Text>
         ) : isClassroomSupport ? (
@@ -525,6 +527,7 @@ export default function SupportRequestScreen() {
           {saving ? <ActivityIndicator color="white" /> : <Text style={styles.bottomSubmitText}>{t('support_request_send_btn') || 'Send Request'}</Text>}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
   TextInput, Alert, KeyboardAvoidingView, Platform, Share, Linking, useWindowDimensions,
@@ -6,6 +7,8 @@ import {
 import { BarChart } from 'react-native-gifted-charts';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { WellbeingHintModal, WellbeingResetModal } from '../../src/components/WellbeingLockModals';
+import { getLockStatus, memberLockScope } from '../../src/utils/wellbeingLock';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
@@ -125,10 +128,10 @@ export default function MyWellbeingScreen() {
   const [pinExists, setPinExists] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
-  const [pinHint, setPinHint] = useState('');
+  const LOCK_SCOPE = memberLockScope(String(memberId));
+  const [hintMode, setHintMode] = useState<null | 'setup' | 'legacy'>(null);
+  const [resetOpen, setResetOpen] = useState(false);
   const [pinStep, setPinStep] = useState<'enter' | 'setup' | 'confirm'>('enter');
-  const [showHint, setShowHint] = useState(false);
-  const [storedHint, setStoredHint] = useState('');
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [range, setRange] = useState<RangeKey>('7');
@@ -154,9 +157,14 @@ export default function MyWellbeingScreen() {
     }
     AsyncStorage.getItem(PIN_KEY).then(pin => {
       if (pin) { setPinExists(true); setPinStep('enter'); }
-      else { setPinExists(false); setPinStep('setup'); }
+      else {
+        setPinExists(false); setPinStep('setup');
+        // No PIN on this device but a hint already exists on the server (new phone, cleared data):
+        // the owner has to answer it before choosing a new PIN.
+        getLockStatus(LOCK_SCOPE).then(st_ => { if (st_?.has_hint) setResetOpen(true); });
+      }
     });
-    AsyncStorage.getItem(HINT_KEY).then(h => h && setStoredHint(h));
+    AsyncStorage.removeItem(HINT_KEY);   // the old free-text hint was stored in plain text on the device
   }, []);
 
   const handlePinDigit = (d: string) => {
@@ -172,9 +180,7 @@ export default function MyWellbeingScreen() {
         setPinConfirm(next);
         if (next.length === 4) {
           if (next === pinInput) {
-            AsyncStorage.setItem(PIN_KEY, pinInput);
-            if (pinHint.trim()) AsyncStorage.setItem(HINT_KEY, pinHint.trim());
-            setPinUnlocked(true);
+            setHintMode('setup');   // the PIN is saved once the hint is saved (see onSaved below)
             loadData();
           } else {
             Alert.alert(t('wellbeing_pin_mismatch') || 'PINs do not match');
@@ -188,19 +194,17 @@ export default function MyWellbeingScreen() {
         setPinInput(next);
         if (next.length === 4) {
           AsyncStorage.getItem(PIN_KEY).then(stored => {
-            if (next === stored) { setPinUnlocked(true); loadData(); }
+            if (next === stored) {
+              setPinUnlocked(true); loadData();
+              getLockStatus(LOCK_SCOPE).then(st_ => { if (st_ && !st_.has_hint) setHintMode('legacy'); });
+            }
             else {
             Alert.alert(
               t('wellbeing_pin_wrong') || 'Incorrect PIN',
               t('wellbeing_pin_forgot_msg') || 'Try again or reset your PIN',
               [
                 { text: t('cancel') || 'Cancel', style: 'cancel', onPress: () => setPinInput('') },
-                { text: t('wellbeing_pin_reset') || 'Reset PIN', style: 'destructive', onPress: async () => {
-                  await AsyncStorage.removeItem(PIN_KEY);
-                  await AsyncStorage.removeItem(HINT_KEY);
-                  setPinExists(false); setPinStep('setup');
-                  setPinInput(''); setPinConfirm('');
-                }}
+                { text: t('wellbeing_pin_reset') || 'Reset PIN', style: 'destructive', onPress: () => { setPinInput(''); setResetOpen(true); } }
               ]
             );
           }
@@ -215,21 +219,7 @@ export default function MyWellbeingScreen() {
     else setPinInput(p => p.slice(0, -1));
   };
 
-  const handleResetPin = () => {
-    Alert.alert(
-      t('wellbeing_pin_reset') || 'Reset PIN',
-      storedHint ? `${t('wellbeing_pin_hint_show') || 'Your hint:'} ${storedHint}` : '',
-      [
-        { text: t('cancel') || 'Cancel', style: 'cancel' },
-        { text: t('wellbeing_pin_reset') || 'Reset', style: 'destructive', onPress: async () => {
-          await AsyncStorage.removeItem(PIN_KEY);
-          await AsyncStorage.removeItem(HINT_KEY);
-          setPinExists(false); setPinInput(''); setPinConfirm(''); setPinHint('');
-          setPinStep('setup'); setStoredHint('');
-        }},
-      ]
-    );
-  };
+  const handleResetPin = () => { setPinInput(''); setResetOpen(true); };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -278,7 +268,7 @@ export default function MyWellbeingScreen() {
         <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <KeyboardAvoidingView style={st.pinBody} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        <KeyboardSafeView style={st.pinBody}>
           <Text style={st.pinIcon}>🔒</Text>
           <Text style={st.pinName}>{memberName}</Text>
           <Text style={st.pinTitle}>{t('my_wellbeing') || 'My Wellbeing'}</Text>
@@ -297,15 +287,6 @@ export default function MyWellbeingScreen() {
             ))}
           </View>
 
-          {pinStep === 'setup' && (
-            <TextInput
-              style={st.hintInput}
-              placeholder={t('wellbeing_pin_hint_label') || 'PIN hint (optional)'}
-              placeholderTextColor="#AAA"
-              value={pinHint}
-              onChangeText={setPinHint}
-            />
-          )}
 
           <View style={st.numpad}>
             {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d, i) => (
@@ -325,7 +306,23 @@ export default function MyWellbeingScreen() {
               <Text style={{ color: '#5C6BC0', fontSize: 14 }}>{t('wellbeing_pin_forgot') || 'Forgot PIN?'}</Text>
             </TouchableOpacity>
           )}
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
+      <WellbeingHintModal
+        visible={hintMode !== null} scope={LOCK_SCOPE} t={t}
+        onSaved={async () => {
+          if (hintMode === 'setup') { await AsyncStorage.setItem(PIN_KEY, pinInput); setPinUnlocked(true); }
+          setHintMode(null);
+        }}
+        onSkip={hintMode === 'legacy' ? () => setHintMode(null) : undefined}
+      />
+      <WellbeingResetModal
+        visible={resetOpen} scope={LOCK_SCOPE} t={t}
+        onClose={() => setResetOpen(false)}
+        onVerified={async () => {
+          await AsyncStorage.removeItem(PIN_KEY);
+          setPinExists(false); setPinInput(''); setPinConfirm(''); setPinStep('setup'); setResetOpen(false);
+        }}
+      />
       </SafeAreaView>
     );
   }
@@ -739,6 +736,7 @@ export default function MyWellbeingScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <WellbeingHintModal visible={hintMode === 'legacy'} scope={LOCK_SCOPE} t={t} onSaved={() => setHintMode(null)} onSkip={() => setHintMode(null)} />
     </SafeAreaView>
   );
 }

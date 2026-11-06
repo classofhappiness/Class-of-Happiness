@@ -1,4 +1,5 @@
 import React, { useState, useLayoutEffect, useEffect } from 'react';
+import { KeyboardSafeView } from '../src/components/KeyboardSafeView';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -664,7 +665,8 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-    <ScrollView 
+    <KeyboardSafeView style={{ flex: 1 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" 
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
     >
@@ -1378,6 +1380,7 @@ export default function SettingsScreen() {
         {appVersionLabel(t('version') || 'Version')}
       </Text>
     </ScrollView>
+    </KeyboardSafeView>
     </SafeAreaView>
   );
 }

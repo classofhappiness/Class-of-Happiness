@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking, Image, Modal, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -68,11 +69,8 @@ export default function SubscriptionScreen() {
   // (linked via invite code) — only unlinked parents should ever see the €4.99 paywall.
   const [parentCoverageLoading, setParentCoverageLoading] = useState(true);
   const [parentCovered, setParentCovered] = useState(false);
-  // Real fix Aug 23 (item 2): School Package used to open a mailto: link, which relies on
-  // the device having an email app configured - real enquiries were silently lost for
-  // anyone without one set up. Reuses the exact same Formspree endpoint (form ID mlgzvorz)
-  // already proven on the live website's own contact form, so enquiries land in the same
-  // inbox either way.
+  // School Package enquiry: posts to the backend (/api/school-enquiry), which emails it to
+  // the superadmin-configured "Enquiry email" (falls back to jono@classofhappiness.com).
   const [showSchoolEnquiry, setShowSchoolEnquiry] = useState(false);
   const [enquiryName, setEnquiryName] = useState('');
   const [enquiryEmail, setEnquiryEmail] = useState('');
@@ -222,13 +220,10 @@ export default function SubscriptionScreen() {
     }
     setEnquirySubmitting(true);
     try {
-      const res = await fetch('https://formspree.io/f/mlgzvorz', {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL || ''}/api/school-enquiry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-          name, email, message,
-          _subject: 'School Package Enquiry',
-        }),
+        body: JSON.stringify({ name, email, message, website: '' }),
       });
       if (res.ok) {
         setEnquirySent(true);
@@ -272,7 +267,7 @@ export default function SubscriptionScreen() {
       <View style={st.freeCard}>
         <View style={st.freeRow}>
           <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
-          <Text style={st.freeText}><Text style={{ fontWeight: '700' }}>{t('free_forever_label') || 'Free forever:'}</Text> {t('free_forever_desc') || 'Up to 2 children · basic check-ins · creature rewards'}</Text>
+          <Text style={st.freeText}><Text style={{ fontWeight: '700' }}>{t('free_forever_label') || 'Free Forever:'}</Text> {t('free_forever_desc') || 'Up to 2 children · basic check-ins · creature rewards'}</Text>
         </View>
       </View>
 
@@ -283,10 +278,10 @@ export default function SubscriptionScreen() {
           <View>
             <Text style={[st.statusText, { color: '#2E7D32' }]}>
               {user?.subscription_status === 'trial'
-                ? `✨ ${t('trial_active_banner')||'Free trial active'}`
+                ? `✨ ${t('trial_active_banner')||'Free Trial Active'}`
                 : user?.subscription_plan
-                  ? `✅ ${user.subscription_plan} ${t('plan_active_suffix')||'plan active'}`
-                  : `✅ ${t('access_active_banner')||'Access active'}`}
+                  ? `✅ ${user.subscription_plan === 'parent' ? (t('plan_parent_active')||'Parent Plan Active') : user.subscription_plan === 'teacher' ? (t('plan_teacher_active')||'Teacher Plan Active') : String(user.subscription_plan).startsWith('school') ? (t('plan_school_active')||'School Plan Active') : (t('access_active_banner')||'Access Active')}`
+                  : `✅ ${t('access_active_banner')||'Access Active'}`}
             </Text>
             {user?.subscription_status === 'trial' && trialEnd && (
               <Text style={{fontSize:12, color:'#388E3C', marginTop:2}}>{(t('trial_ends_on') || 'Your free trial ends on {date}').replace('{date}', formatShortDate(trialEnd, language, { year: true }))}</Text>
@@ -452,8 +447,9 @@ export default function SubscriptionScreen() {
 
       {/* School Package enquiry - real fix Aug 23 (item 2) */}
       <Modal visible={showSchoolEnquiry} transparent animationType="slide" onRequestClose={closeSchoolEnquiry}>
-        <View style={st.enquiryOverlay}>
+        <KeyboardSafeView style={st.enquiryOverlay}>
           <View style={st.enquirySheet}>
+           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
             {enquirySent ? (
               <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                 <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
@@ -508,8 +504,9 @@ export default function SubscriptionScreen() {
                 </View>
               </>
             )}
+           </ScrollView>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
 
       <ParentGate visible={showGate} t={t} onCancel={() => setShowGate(false)} onPass={() => { setShowGate(false); if (gateAction === 'portal') openBillingPortal(t); else startCheckout(); }} />
@@ -572,7 +569,7 @@ const st = StyleSheet.create({
   schoolSub: { fontSize: 12, color: '#666', lineHeight: 17 },
   legalText: { fontSize: 11, color: '#AAA', textAlign: 'center', lineHeight: 16, paddingHorizontal: 8 },
   enquiryOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' },
-  enquirySheet: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, width: '100%', maxWidth: 480 },
+  enquirySheet: { maxHeight: '92%', backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, width: '100%', maxWidth: 480 },
   enquiryTitle: { fontSize: 18, fontWeight: '800', color: '#333', marginBottom: 4 },
   enquirySub: { fontSize: 13, color: '#888', marginBottom: 18 },
   enquiryLabel: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6 },

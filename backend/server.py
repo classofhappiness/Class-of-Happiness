@@ -20641,6 +20641,310 @@ def _send_school_activation_notification(school_name: str, tier: str, redeemed_b
         return False, str(e)[:150]
 
 
+# ── SCHOOL PACKAGE ENQUIRY ───────────────────────────────────────────────
+# The app used to POST the enquiry straight to a Formspree form, so the recipient lived in
+# Formspree's dashboard and the backend knew nothing about it. It now posts here and the
+# server sends it with Resend (same sender as every other email in this file) to the
+# "Enquiry email" setting: app_settings row key 'enquiry_email', falling back to the
+# SCHOOL_ENQUIRY_EMAIL env var, then jono@classofhappiness.com. Superadmin only can change it.
+ENQUIRY_EMAIL_KEY = "enquiry_email"
+ENQUIRY_EMAIL_DEFAULT = "jono@classofhappiness.com"
+_ENQUIRY_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$")
+ENQUIRY_PER_IP_PER_HOUR = 5
+ENQUIRY_TOTAL_PER_HOUR = 30
+_enquiry_hits: dict = {}      # ip -> [timestamps]; in memory per worker, like the sign-up code limiter
+_enquiry_all_hits: list = []
+
+def _valid_single_email(value: str) -> bool:
+    v = (value or "").strip()
+    return 0 < len(v) <= 254 and _ENQUIRY_EMAIL_RE.match(v) is not None and ".." not in v
+
+def _get_enquiry_email() -> str:
+    try:
+        r = supabase.table("app_settings").select("value").eq("key", ENQUIRY_EMAIL_KEY).execute()
+        v = ((r.data or [{}])[0].get("value") or "").strip()
+        if v and _valid_single_email(v):
+            return v
+    except Exception as e:
+        logger.error(f"[enquiry-email] could not read setting, using fallback: {e}")
+    env_v = (os.environ.get("SCHOOL_ENQUIRY_EMAIL") or "").strip()
+    return env_v if _valid_single_email(env_v) else ENQUIRY_EMAIL_DEFAULT
+
+def _enquiry_rate_check(ip: str) -> None:
+    now = time.time()
+    hits = [t for t in _enquiry_hits.get(ip, []) if now - t < 3600]
+    if len(hits) >= ENQUIRY_PER_IP_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Too many enquiries from this connection. Please try again later.")
+    global _enquiry_all_hits
+    _enquiry_all_hits = [t for t in _enquiry_all_hits if now - t < 3600]
+    if len(_enquiry_all_hits) >= ENQUIRY_TOTAL_PER_HOUR:
+        raise HTTPException(status_code=429, detail="We're receiving a lot of enquiries right now. Please try again later.")
+    hits.append(now); _enquiry_hits[ip] = hits; _enquiry_all_hits.append(now)
+    if len(_enquiry_hits) > 5000:
+        for k in [k for k, v in _enquiry_hits.items() if not v or now - v[-1] >= 3600]:
+            _enquiry_hits.pop(k, None)
+
+def _send_enquiry_email(to: str, name: str, email: str, message: str, is_test: bool = False) -> tuple:
+    """Never raises. Sends the enquiry to `to`; reply-to is the enquirer so Reply works."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    import html as _html
+    prefix = "[TEST] " if is_test else ""
+    banner = ('<p style="background:#FFF3CD;border:1px solid #F5D98A;padding:10px;border-radius:6px;color:#8A6D1D;font-weight:700">'
+              'THIS IS A TEST ENQUIRY sent from the portal. No school sent this; you can ignore it.</p>') if is_test else ""
+    try:
+        payload = {
+            "from": RESEND_FROM_EMAIL,
+            "to": [to],
+            "subject": f"{prefix}School Package Enquiry",
+            "html": f"""
+                <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px">
+                  {banner}
+                  <h2 style="color:#1A1A2E">School Package Enquiry</h2>
+                  <p style="color:#333;font-size:15px"><b>Name:</b> {_html.escape(name)}<br><b>Email:</b> {_html.escape(email)}</p>
+                  <p style="color:#333;font-size:15px;white-space:pre-wrap">{_html.escape(message)}</p>
+                </div>
+            """,
+        }
+        if not is_test:
+            payload["reply_to"] = email
+        result = resend.Emails.send(payload)
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[school-enquiry] send failed: {e}")
+        return False, str(e)[:150]
+
+class SchoolEnquiryRequest(BaseModel):
+    name: str = Field(default="", max_length=120)
+    email: str = Field(default="", max_length=254)
+    message: str = Field(default="", max_length=4000)
+    website: str = Field(default="", max_length=200)   # honeypot: real users never see or fill it
+
+@api_router.post("/school-enquiry")
+async def submit_school_enquiry(body: SchoolEnquiryRequest, request: Request):
+    """Public (a visitor may not have an account yet). Rate limited per connection and overall."""
+    if body.website.strip():
+        return {"status": "sent"}          # bot: pretend success, send nothing
+    name, email, message = body.name.strip(), body.email.strip(), body.message.strip()
+    if not name or not message or not _valid_single_email(email):
+        raise HTTPException(status_code=400, detail="Please fill in your name, a valid email, and a message.")
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[-1].strip() if fwd else (request.client.host if request.client else "unknown")
+    _enquiry_rate_check(ip)
+    ok, info = await run_in_threadpool(_send_enquiry_email, _get_enquiry_email(), name, email, message)
+    if not ok:
+        raise HTTPException(status_code=502, detail="Could not send your enquiry. Please try again.")
+    logger.info("[school-enquiry] sent")
+    return {"status": "sent"}
+
+class EnquiryEmailUpdate(BaseModel):
+    email: str = Field(default="", max_length=254)
+
+async def _require_superadmin_user(request: Request) -> dict:
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    return user
+
+@api_router.get("/admin/enquiry-email")
+async def get_enquiry_email_setting(request: Request):
+    await _require_superadmin_user(request)
+    stored = ""
+    try:
+        r = supabase.table("app_settings").select("value").eq("key", ENQUIRY_EMAIL_KEY).execute()
+        stored = ((r.data or [{}])[0].get("value") or "").strip()
+    except Exception as e:
+        logger.error(f"[enquiry-email] read failed: {e}")
+    return {"email": stored, "effective_email": _get_enquiry_email(), "is_default": not stored}
+
+@api_router.put("/admin/enquiry-email")
+async def set_enquiry_email_setting(body: EnquiryEmailUpdate, request: Request):
+    """Empty value clears the setting (falls back to the env var / jono@classofhappiness.com)."""
+    user = await _require_superadmin_user(request)
+    value = body.email.strip().lower()
+    if value and not _valid_single_email(value):
+        raise HTTPException(status_code=400, detail="Enter one valid email address.")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    supabase.table("app_settings").upsert(
+        {"key": ENQUIRY_EMAIL_KEY, "value": value, "updated_at": now_iso, "updated_by": user["user_id"]},
+        on_conflict="key").execute()
+    logger.info(f"[enquiry-email] changed by user_id={user['user_id']} at {now_iso}")
+    return {"email": value, "effective_email": _get_enquiry_email(), "is_default": not value}
+
+@api_router.post("/admin/enquiry-email/test")
+async def send_test_enquiry(request: Request):
+    await _require_superadmin_user(request)
+    to = _get_enquiry_email()
+    ok, info = await run_in_threadpool(_send_enquiry_email, to, "Portal test", "test@classofhappiness.com",
+                                      "This is a test of the School Package enquiry address.", True)
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Test email failed: {info}")
+    return {"status": "sent", "sent_to": to, "email_id": info}
+
+
+# ── WELLBEING LOCK: hint + server-checked reset ──────────────────────────
+# The My Wellbeing (parent, one lock per family member) and teacher check-in screens are guarded
+# by a 4-digit PIN kept on the device. Forgetting it used to mean "tap Reset", with no check at
+# all. Now a reset must be proved to this server: by the one-word answer to the hint chosen when
+# the PIN was set, or - for users who haven't added a hint yet - by their account password.
+# Only a salted PBKDF2-SHA256 hash of the (trimmed, lowercased) answer is stored; it is never logged,
+# emailed, or returned. Wrong tries are counted per user (5 wrong -> 15 minutes locked).
+# Table wellbeing_locks: (user_id, scope) rows hold the hint; the row scope='_limiter' holds the
+# per-user counter. scope is 'teacher' or 'member:<family member id>'.
+import unicodedata as _unicodedata
+WL_PROMPTS = ("pet", "hobby", "place")
+WL_MAX_WRONG = 5
+WL_LOCK_MINUTES = 15
+WL_RESET_WINDOW_MINUTES = 10
+_WL_SCOPE_RE = re.compile(r"^(teacher|member:[A-Za-z0-9_\-]{1,64})$")
+
+def _wl_norm_answer(answer: str) -> str:
+    return _unicodedata.normalize("NFKC", (answer or "")).strip().lower()
+
+def _wl_valid_answer(norm: str) -> bool:
+    return 1 <= len(norm) <= 40 and not any(ch.isspace() for ch in norm)
+
+def _wl_hash(norm: str, salt: Optional[bytes] = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    h = hashlib.pbkdf2_hmac("sha256", norm.encode("utf-8"), salt, 200_000, dklen=32)
+    return f"{salt.hex()}:{h.hex()}"
+
+def _wl_check(norm: str, stored: str) -> bool:
+    try:
+        salt_hex, h_hex = stored.split(":")
+        return _hmac.compare_digest(_wl_hash(norm, bytes.fromhex(salt_hex)).split(":")[1], h_hex)
+    except Exception:
+        return False
+
+def _wl_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+def _wl_parse(ts) -> Optional[datetime]:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+def _wl_row(user_id: str, scope: str) -> dict:
+    r = supabase.table("wellbeing_locks").select("*").eq("user_id", user_id).eq("scope", scope).execute()
+    return (r.data or [None])[0] or {}
+
+def _wl_save(user_id: str, scope: str, fields: dict) -> None:
+    supabase.table("wellbeing_locks").upsert(
+        {"user_id": user_id, "scope": scope, "updated_at": _wl_now().isoformat(), **fields},
+        on_conflict="user_id,scope").execute()
+
+def _wl_locked_minutes(user_id: str) -> int:
+    until = _wl_parse(_wl_row(user_id, "_limiter").get("locked_until"))
+    if until and until > _wl_now():
+        return max(1, int((until - _wl_now()).total_seconds() // 60) + 1)
+    return 0
+
+def _wl_require_not_locked(user_id: str) -> None:
+    mins = _wl_locked_minutes(user_id)
+    if mins:
+        raise HTTPException(status_code=429, detail={"code": "locked", "retry_after_minutes": mins},
+                            headers={"Retry-After": str(mins * 60)})
+
+def _wl_wrong(user_id: str) -> None:
+    row = _wl_row(user_id, "_limiter")
+    count = int(row.get("fail_count") or 0) + 1
+    if count >= WL_MAX_WRONG:
+        _wl_save(user_id, "_limiter", {"fail_count": 0, "locked_until": (_wl_now() + timedelta(minutes=WL_LOCK_MINUTES)).isoformat()})
+        logger.warning(f"[wellbeing-lock] reset locked for {WL_LOCK_MINUTES} min user_id={user_id}")
+        raise HTTPException(status_code=429, detail={"code": "locked", "retry_after_minutes": WL_LOCK_MINUTES},
+                            headers={"Retry-After": str(WL_LOCK_MINUTES * 60)})
+    _wl_save(user_id, "_limiter", {"fail_count": count, "locked_until": None})
+    raise HTTPException(status_code=403, detail={"code": "wrong", "attempts_left": WL_MAX_WRONG - count})
+
+def _wl_right(user_id: str) -> None:
+    _wl_save(user_id, "_limiter", {"fail_count": 0, "locked_until": None})
+
+async def _wl_user_and_scope(request: Request, scope: str) -> dict:
+    user = await get_current_user(request)
+    if not user or not isinstance(user.get("user_id"), str) or user.get("role") == "kiosk":
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not _WL_SCOPE_RE.match(scope or ""):
+        raise HTTPException(status_code=400, detail="Invalid lock")
+    return user
+
+def _wl_account_password_ok(user_id: str, password: str) -> bool:
+    r = supabase.table("users").select("portal_password").eq("user_id", user_id).execute()
+    stored = ((r.data or [{}])[0].get("portal_password") or "")
+    return bool(password) and bool(stored) and verify_password(password, stored)
+
+class WellbeingHintBody(BaseModel):
+    scope: str = Field(max_length=80)
+    prompt: str = Field(max_length=20)
+    answer: str = Field(max_length=100)
+    current_answer: str = Field(default="", max_length=100)
+
+class WellbeingResetBody(BaseModel):
+    scope: str = Field(max_length=80)
+    answer: str = Field(default="", max_length=100)
+    password: str = Field(default="", max_length=200)
+
+@api_router.get("/wellbeing-lock/status")
+async def wellbeing_lock_status(scope: str, request: Request):
+    user = await _wl_user_and_scope(request, scope)
+    row = _wl_row(user["user_id"], scope)
+    has_hint = bool(row.get("hint_hash"))
+    has_password = False
+    if not has_hint:
+        r = supabase.table("users").select("portal_password").eq("user_id", user["user_id"]).execute()
+        has_password = bool((r.data or [{}])[0].get("portal_password"))
+    return {"has_hint": has_hint, "prompt": row.get("hint_prompt") if has_hint else None,
+            "has_account_password": has_password, "locked_minutes": _wl_locked_minutes(user["user_id"])}
+
+@api_router.put("/wellbeing-lock/hint")
+async def wellbeing_lock_set_hint(body: WellbeingHintBody, request: Request):
+    """Set the hint. Allowed when none exists yet, within 10 minutes of a successful reset, or when
+    the current answer is supplied and right (counted against the same 5-wrong limit)."""
+    user = await _wl_user_and_scope(request, body.scope)
+    uid = user["user_id"]
+    if body.prompt not in WL_PROMPTS:
+        raise HTTPException(status_code=400, detail="Invalid hint prompt")
+    norm = _wl_norm_answer(body.answer)
+    if not _wl_valid_answer(norm):
+        raise HTTPException(status_code=400, detail="The answer must be a single word")
+    row = _wl_row(uid, body.scope)
+    if row.get("hint_hash"):
+        reset_ok = _wl_parse(row.get("reset_ok_until"))
+        if not (reset_ok and reset_ok > _wl_now()):
+            _wl_require_not_locked(uid)
+            cur = _wl_norm_answer(body.current_answer)
+            if not cur or not _wl_check(cur, row["hint_hash"]):
+                _wl_wrong(uid)
+            _wl_right(uid)
+    _wl_save(uid, body.scope, {"hint_prompt": body.prompt, "hint_hash": _wl_hash(norm), "reset_ok_until": None})
+    logger.info(f"[wellbeing-lock] hint set user_id={uid}")
+    return {"status": "saved"}
+
+@api_router.post("/wellbeing-lock/reset")
+async def wellbeing_lock_reset(body: WellbeingResetBody, request: Request):
+    """Proves the person may choose a new PIN. Hint set: the one-word answer. No hint yet: the
+    account login password. Existing entries are NOT deleted; they stay behind the new PIN, which
+    can only be chosen by someone who passed this check."""
+    user = await _wl_user_and_scope(request, body.scope)
+    uid = user["user_id"]
+    _wl_require_not_locked(uid)
+    row = _wl_row(uid, body.scope)
+    if row.get("hint_hash"):
+        norm = _wl_norm_answer(body.answer)
+        ok = bool(norm) and _wl_check(norm, row["hint_hash"])
+    else:
+        ok = _wl_account_password_ok(uid, body.password)
+    if not ok:
+        _wl_wrong(uid)
+    _wl_right(uid)
+    _wl_save(uid, body.scope, {"reset_ok_until": (_wl_now() + timedelta(minutes=WL_RESET_WINDOW_MINUTES)).isoformat()})
+    logger.info(f"[wellbeing-lock] reset verified user_id={uid} via={'hint' if row.get('hint_hash') else 'password'}")
+    return {"status": "ok"}
+
+
 # ── EXPORT FORMAT PICKER (Phase 2.5 item 4) ─────────────────────────────
 # Shared PDF/Excel/Word builders for Services Directory + Wellbeing Tracker - portal
 # only for now (neither surface exists in the admin app at all today, confirmed by the

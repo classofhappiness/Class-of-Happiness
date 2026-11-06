@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View,
   Text,
@@ -376,7 +377,7 @@ export default function ManageClassroomsScreen() {
 
       {/* ── Create Classroom Modal ── */}
       <Modal visible={createModalVisible} animationType="slide" transparent onRequestClose={() => setCreateModalVisible(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('create_classroom') || 'Create Classroom'}</Text>
@@ -396,7 +397,7 @@ export default function ManageClassroomsScreen() {
               <Text style={styles.createButtonText}>{creating ? (t('creating') || 'Creating...') : (t('create_classroom') || 'Create Classroom')}</Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
 
       {/* ── Edit Classroom / Manage Students Modal ── */}
@@ -464,7 +465,7 @@ export default function ManageClassroomsScreen() {
 
       {/* ── Bulk Strategy Modal ── */}
       <Modal visible={strategyModalVisible} animationType="slide" transparent onRequestClose={() => setStrategyModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('add_strategy_to_students') || '💡 Add Strategy to Students'}</Text>
@@ -473,7 +474,7 @@ export default function ManageClassroomsScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               {/* Zone selector */}
               <Text style={styles.sectionLabel}>{t('select_emotion') || 'Select Emotion'}</Text>
               <View style={styles.zoneRow}>
@@ -573,7 +574,7 @@ export default function ManageClassroomsScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
     </SafeAreaView>
   );

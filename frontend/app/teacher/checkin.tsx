@@ -4,6 +4,8 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
   Switch, ActivityIndicator,
 } from 'react-native';
+import { WellbeingHintModal, WellbeingResetModal } from '../../src/components/WellbeingLockModals';
+import { getLockStatus, teacherLockScope } from '../../src/utils/wellbeingLock';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -129,6 +131,8 @@ export default function TeacherCheckInScreen() {
   const [pinInput, setPinInput] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
   const PIN_KEY = 'teacher_checkin_pin';
+  const [hintMode, setHintMode] = useState<null | 'setup' | 'legacy'>(null);
+  const [resetOpen, setResetOpen] = useState(false);
   const [weekExpanded, setWeekExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
@@ -143,7 +147,12 @@ export default function TeacherCheckInScreen() {
     else if (user?.email) { const n = user.email.split('@')[0].replace(/\./g,' ').replace(/\w/g,(c:string)=>c.toUpperCase()); setDisplayName(n); setNameInput(n); }
     AsyncStorage.getItem(PIN_KEY).then(pin => {
       if (pin) { setPinStep('enter'); }
-      else { setPinStep('setup'); }
+      else {
+        setPinStep('setup');
+        // No PIN on this device but a hint already exists on the server (new phone, cleared data):
+        // the owner has to answer it before choosing a new PIN.
+        getLockStatus(teacherLockScope).then(st_ => { if (st_?.has_hint) setResetOpen(true); });
+      }
     });
   }, []);
 
@@ -530,8 +539,7 @@ export default function TeacherCheckInScreen() {
         setPinConfirm(next);
         if (next.length === 4) {
           if (next === pinInput) {
-            AsyncStorage.setItem(PIN_KEY, pinInput);
-            setPinUnlocked(true);
+            setHintMode('setup');   // the PIN is saved once the hint is saved (see onSaved below)
           } else {
             Alert.alert(t('pins_do_not_match') || 'PINs do not match');
             setPinInput(''); setPinConfirm(''); setPinStep('setup');
@@ -544,7 +552,10 @@ export default function TeacherCheckInScreen() {
         setPinInput(next);
         if (next.length === 4) {
           AsyncStorage.getItem(PIN_KEY).then(stored => {
-            if (next === stored) { setPinUnlocked(true); }
+            if (next === stored) {
+              setPinUnlocked(true);
+              getLockStatus(teacherLockScope).then(st_ => { if (st_ && !st_.has_hint) setHintMode('legacy'); });
+            }
             else { Alert.alert(t('incorrect_pin') || 'Incorrect PIN'); setPinInput(''); }
           });
         }
@@ -557,15 +568,7 @@ export default function TeacherCheckInScreen() {
     else setPinInput(p => p.slice(0,-1));
   };
 
-  const handleResetPin = () => {
-    Alert.alert(t('wellbeing_pin_reset') || 'Reset PIN', t('reset_pin_confirm_desc') || 'Are you sure? You will need to create a new PIN.', [
-      { text: t('cancel') || 'Cancel', style: 'cancel' },
-      { text: t('reset') || 'Reset', style: 'destructive', onPress: async () => {
-        await AsyncStorage.removeItem(PIN_KEY);
-        setPinInput(''); setPinConfirm(''); setPinStep('setup');
-      }},
-    ]);
-  };
+  const handleResetPin = () => { setPinInput(''); setResetOpen(true); };
 
   const saveName = async () => {
     if (!nameInput.trim()) return;
@@ -619,6 +622,22 @@ export default function TeacherCheckInScreen() {
             </TouchableOpacity>
           )}
         </View>
+        <WellbeingHintModal
+          visible={hintMode !== null} scope={teacherLockScope} t={t}
+          onSaved={async () => {
+            if (hintMode === 'setup') { await AsyncStorage.setItem(PIN_KEY, pinInput); setPinUnlocked(true); }
+            setHintMode(null);
+          }}
+          onSkip={hintMode === 'legacy' ? () => setHintMode(null) : undefined}
+        />
+        <WellbeingResetModal
+          visible={resetOpen} scope={teacherLockScope} t={t}
+          onClose={() => setResetOpen(false)}
+          onVerified={async () => {
+            await AsyncStorage.removeItem(PIN_KEY);
+            setPinInput(''); setPinConfirm(''); setPinStep('setup'); setResetOpen(false);
+          }}
+        />
       </SafeAreaView>
     );
   }
@@ -640,6 +659,7 @@ export default function TeacherCheckInScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <EdgeSafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <WellbeingHintModal visible={hintMode === 'legacy'} scope={teacherLockScope} t={t} onSaved={() => setHintMode(null)} onSkip={() => setHintMode(null)} />
       <TranslatedHeader
         title={t('teacher_checkin') || 'Teacher Check-In'}
         // Real fix Sep 24 (item3, second device-log pass): the title overlapped the Support

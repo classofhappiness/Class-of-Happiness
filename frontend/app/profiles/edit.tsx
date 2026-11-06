@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { 
   View, 
   Text, 
@@ -168,11 +169,8 @@ export default function EditProfileScreen() {
   return (
     <View style={styles.container}>
       <TranslatedHeader title={t('edit') || 'Edit'} showHome />
-      <KeyboardAvoidingView 
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardSafeView style={styles.keyboardView}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Name Input */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('name') || 'Name'}</Text>
@@ -293,7 +291,7 @@ export default function EditProfileScreen() {
             <Text style={styles.deleteButtonText}>{t('delete_student') || t('delete_student') || 'Delete Profile'}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </View>
   );
 }

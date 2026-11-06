@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
@@ -86,7 +87,7 @@ export default function VerifyEmailRequiredScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inner}>
+      <KeyboardSafeView style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <TouchableOpacity style={[styles.backButton, { marginTop: insets.top }]} onPress={handleBackToSignup} disabled={goingBack}>
             <MaterialIcons name="arrow-back" size={20} color="#1A1A2E" />
@@ -138,7 +139,7 @@ export default function VerifyEmailRequiredScreen() {
             <Text style={styles.logoutLinkText}>{t('not_you_sign_out') || 'Not you? Sign out'}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }

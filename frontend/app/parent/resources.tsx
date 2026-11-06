@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View,
   Text,
@@ -634,6 +635,7 @@ export default function ResourcesScreen() {
 
       {/* Rating Modal */}
       <Modal visible={showRatingModal} transparent animationType="fade" onRequestClose={() => setShowRatingModal(false)}>
+        <KeyboardSafeView style={{ flex: 1 }}>
         <TouchableOpacity style={styles.ratingModalOverlay} activeOpacity={1} onPress={() => setShowRatingModal(false)}>
           <View style={styles.ratingModalContent} onStartShouldSetResponder={() => true}>
             <Text style={styles.ratingModalTitle}>{t('research_basis') || 'Rate'}</Text>
@@ -667,6 +669,7 @@ export default function ResourcesScreen() {
             </View>
           </View>
         </TouchableOpacity>
+        </KeyboardSafeView>
       </Modal>
     </SafeAreaView>
   );

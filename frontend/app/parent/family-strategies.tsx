@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
   TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
@@ -433,7 +434,7 @@ export default function FamilyStrategiesScreen() {
 
         {/* Add/Edit Modal */}
         <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <KeyboardSafeView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' }}>
             <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, width: '100%', maxWidth: 480 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 20 }}>
                 {editingStrategy ? (t('edit_family_strategy') || 'Edit Strategy') : (t('add_family_strategy') || 'Add Family Strategy')}
@@ -498,7 +499,7 @@ export default function FamilyStrategiesScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardSafeView>
         </Modal>
 
         <View style={styles.footer}>

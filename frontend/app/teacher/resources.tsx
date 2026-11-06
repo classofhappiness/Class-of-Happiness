@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View,
   Text,
@@ -520,7 +521,7 @@ export default function TeacherResourcesScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <SafeAreaView style={styles.container}>
       {linkGate.gate}
       {/* Real fix Sep 18: this screen imported TranslatedHeader (which is where the COH logo
@@ -648,7 +649,7 @@ export default function TeacherResourcesScreen() {
         animationType="slide"
         onRequestClose={() => setShowUploadModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('upload_resource_title') || 'Upload Resource'}</Text>
@@ -657,7 +658,7 @@ export default function TeacherResourcesScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.inputLabel}>{t('title_label') || 'Title'}</Text>
               <TextInput
                 style={styles.textInput}
@@ -735,7 +736,7 @@ export default function TeacherResourcesScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
 
       {/* Rating Modal */}
@@ -745,7 +746,7 @@ export default function TeacherResourcesScreen() {
         animationType="slide"
         onRequestClose={() => setShowRatingModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle} numberOfLines={1}>
@@ -756,7 +757,7 @@ export default function TeacherResourcesScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               {/* Resource Info */}
               <View style={styles.resourceInfo}>
                 <MaterialIcons name="picture-as-pdf" size={48} color="#F44336" />
@@ -817,7 +818,7 @@ export default function TeacherResourcesScreen() {
               )}
             </ScrollView>
           </View>
-        </View>
+        </KeyboardSafeView>
       </Modal>
 
       {/* View Resource Modal */}

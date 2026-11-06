@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
   TextInput, Alert, Modal, Image, KeyboardAvoidingView, Platform
@@ -411,11 +412,7 @@ export default function ManageStrategiesScreen() {
 
       {/* Add/Edit Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
+        <KeyboardSafeView style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -426,7 +423,7 @@ export default function ManageStrategiesScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalScroll}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={styles.modalScroll}>
               {/* Name */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{t('name_required') || 'Name *'}</Text>
@@ -559,7 +556,7 @@ export default function ManageStrategiesScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardSafeView>
       </Modal>
     </View>
   );

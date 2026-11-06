@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { 
   View, 
   Text, 
@@ -964,7 +965,7 @@ export default function StudentDetailScreen() {
 
         {/* ── Add Strategy Modal ── */}
         <Modal visible={showAddStrategyModal} transparent animationType="slide" onRequestClose={() => setShowAddStrategyModal(false)}>
-          <View style={styles.modalOverlay}>
+          <KeyboardSafeView style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t('add_strategy') || 'Add Strategy'}</Text>
@@ -972,7 +973,7 @@ export default function StudentDetailScreen() {
                   <MaterialIcons name="close" size={24} color="#666" />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{maxHeight:400}}>
+              <ScrollView keyboardShouldPersistTaps="handled" style={{maxHeight:400}}>
                 <Text style={styles.inputLabel}>{t('strategy_name_required_label') || 'Strategy Name *'}</Text>
                 <TextInput
                   style={styles.textInput}
@@ -1042,7 +1043,7 @@ export default function StudentDetailScreen() {
                 </TouchableOpacity>
               </ScrollView>
             </View>
-          </View>
+          </KeyboardSafeView>
         </Modal>
 
         {/* Home Data Section (if parent has enabled sharing) */}

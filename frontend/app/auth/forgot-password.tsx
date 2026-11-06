@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
@@ -109,10 +110,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.inner}
-      >
+      <KeyboardSafeView style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Real fix Sep 19 (live device report): was a plain, no-background back icon with
               no logo at all - the screen now had no native header (see _layout.tsx) providing
@@ -206,7 +204,7 @@ export default function ForgotPasswordScreen() {
             </>
           )}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafeView>
     </SafeAreaView>
   );
 }
