@@ -2466,5 +2466,15 @@
   "wl_continue": "Continua",
   "wl_wrong_left": "Risposta sbagliata. Ti restano {n} tentativi.",
   "wl_locked": "Troppe risposte sbagliate. La reimpostazione è bloccata per {n} minuti.",
-  "wl_no_password": "Questo account non ha una password, quindi il PIN non può essere reimpostato qui. Contatta l'assistenza."
+  "wl_no_password": "Questo account non ha una password, quindi il PIN non può essere reimpostato qui. Contatta l'assistenza.",
+  "wl_email_btn": "Inviami un codice via email",
+  "wl_email_sent": "Abbiamo inviato un codice a 6 cifre a {email}. È valido per 10 minuti.",
+  "wl_email_junk": "Controlla la cartella posta indesiderata / spam.",
+  "wl_code_placeholder": "Codice a 6 cifre",
+  "wl_email_cooldown": "Attendi {n} secondi prima di richiedere un altro codice.",
+  "wl_email_hourly": "Hai richiesto troppi codici. Riprova tra {n} minuti.",
+  "wl_email_failed": "Non siamo riusciti a inviare l'email. Riprova.",
+  "wl_email_no_address": "Questo account non ha un indirizzo email.",
+  "wl_use_other_way": "Usa un altro metodo",
+  "wl_email_resend": "Invia un nuovo codice"
 }

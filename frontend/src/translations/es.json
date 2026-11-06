@@ -2457,5 +2457,15 @@
   "wl_continue": "Continuar",
   "wl_wrong_left": "Respuesta incorrecta. Te quedan {n} intentos.",
   "wl_locked": "Demasiadas respuestas incorrectas. El restablecimiento está bloqueado durante {n} minutos.",
-  "wl_no_password": "Esta cuenta no tiene contraseña, así que el PIN no se puede restablecer aquí. Contacta con soporte."
+  "wl_no_password": "Esta cuenta no tiene contraseña, así que el PIN no se puede restablecer aquí. Contacta con soporte.",
+  "wl_email_btn": "Envíame un código por correo",
+  "wl_email_sent": "Hemos enviado un código de 6 dígitos a {email}. Es válido durante 10 minutos.",
+  "wl_email_junk": "Revisa tu carpeta de correo no deseado o spam.",
+  "wl_code_placeholder": "Código de 6 dígitos",
+  "wl_email_cooldown": "Espera {n} segundos antes de pedir otro código.",
+  "wl_email_hourly": "Has pedido demasiados códigos. Inténtalo de nuevo en {n} minutos.",
+  "wl_email_failed": "No pudimos enviar el correo. Inténtalo de nuevo.",
+  "wl_email_no_address": "Esta cuenta no tiene dirección de correo.",
+  "wl_use_other_way": "Usar otra forma",
+  "wl_email_resend": "Enviar un código nuevo"
 }

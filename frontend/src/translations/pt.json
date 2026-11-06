@@ -2457,5 +2457,15 @@
   "wl_continue": "Continuar",
   "wl_wrong_left": "Resposta errada. Restam {n} tentativas.",
   "wl_locked": "Demasiadas respostas erradas. A reposição está bloqueada durante {n} minutos.",
-  "wl_no_password": "Esta conta não tem palavra-passe, por isso o PIN não pode ser reposto aqui. Contacta o apoio."
+  "wl_no_password": "Esta conta não tem palavra-passe, por isso o PIN não pode ser reposto aqui. Contacta o apoio.",
+  "wl_email_btn": "Enviar-me um código por email",
+  "wl_email_sent": "Enviámos um código de 6 dígitos para {email}. É válido durante 10 minutos.",
+  "wl_email_junk": "Verifica a pasta de lixo eletrónico / spam.",
+  "wl_code_placeholder": "Código de 6 dígitos",
+  "wl_email_cooldown": "Aguarda {n} segundos antes de pedir outro código.",
+  "wl_email_hourly": "Pediste demasiados códigos. Tenta novamente dentro de {n} minutos.",
+  "wl_email_failed": "Não foi possível enviar o email. Tenta novamente.",
+  "wl_email_no_address": "Esta conta não tem endereço de email.",
+  "wl_use_other_way": "Usar outra forma",
+  "wl_email_resend": "Enviar um novo código"
 }

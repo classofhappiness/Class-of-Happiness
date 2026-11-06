@@ -17,7 +17,7 @@ export const teacherLockScope = 'teacher';
 export const memberLockScope = (memberId: string) => `member:${memberId}`;
 
 export type WlStatus = { has_hint: boolean; prompt: WlPrompt | null; has_account_password: boolean; locked_minutes: number };
-export type WlResult<T = any> = { ok: boolean; status: number; data: T | null; code?: string; attemptsLeft?: number; retryMinutes?: number; message?: string };
+export type WlResult<T = any> = { ok: boolean; status: number; data: T | null; code?: string; attemptsLeft?: number; retryMinutes?: number; retrySeconds?: number; message?: string; extra?: any };
 
 async function call(path: string, method: string, body?: any): Promise<WlResult> {
   try {
@@ -36,6 +36,7 @@ async function call(path: string, method: string, body?: any): Promise<WlResult>
       code: typeof d === 'object' ? d?.code : undefined,
       attemptsLeft: typeof d === 'object' ? d?.attempts_left : undefined,
       retryMinutes: typeof d === 'object' ? d?.retry_after_minutes : undefined,
+      retrySeconds: typeof d === 'object' ? d?.retry_after_seconds : undefined,
       message: typeof d === 'string' ? d : undefined,
     };
   } catch {
@@ -49,5 +50,8 @@ export async function getLockStatus(scope: string): Promise<WlStatus | null> {
 }
 export const saveLockHint = (scope: string, prompt: WlPrompt, answer: string, currentAnswer = '') =>
   call('/wellbeing-lock/hint', 'PUT', { scope, prompt, answer, current_answer: currentAnswer });
-export const verifyLockReset = (scope: string, answer: string, password: string) =>
-  call('/wellbeing-lock/reset', 'POST', { scope, answer, password });
+export const verifyLockReset = (scope: string, answer: string, password: string, code = '') =>
+  call('/wellbeing-lock/reset', 'POST', { scope, answer, password, code });
+// Emails a 6-digit code to the signed-in account's own address (the server decides the address).
+export const sendLockEmailCode = (scope: string) =>
+  call('/wellbeing-lock/email-code', 'POST', { scope });

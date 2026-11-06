@@ -2466,5 +2466,15 @@
   "wl_continue": "Continuer",
   "wl_wrong_left": "Mauvaise réponse. Il te reste {n} essais.",
   "wl_locked": "Trop de mauvaises réponses. La réinitialisation est bloquée pendant {n} minutes.",
-  "wl_no_password": "Ce compte n'a pas de mot de passe, le code PIN ne peut donc pas être réinitialisé ici. Contacte l'assistance."
+  "wl_no_password": "Ce compte n'a pas de mot de passe, le code PIN ne peut donc pas être réinitialisé ici. Contacte l'assistance.",
+  "wl_email_btn": "M'envoyer un code par e-mail",
+  "wl_email_sent": "Nous avons envoyé un code à 6 chiffres à {email}. Il est valable 10 minutes.",
+  "wl_email_junk": "Vérifie ton dossier courrier indésirable / spam.",
+  "wl_code_placeholder": "Code à 6 chiffres",
+  "wl_email_cooldown": "Attends {n} secondes avant de demander un autre code.",
+  "wl_email_hourly": "Trop de codes demandés. Réessaie dans {n} minutes.",
+  "wl_email_failed": "Nous n'avons pas pu envoyer l'e-mail. Réessaie.",
+  "wl_email_no_address": "Ce compte n'a pas d'adresse e-mail.",
+  "wl_use_other_way": "Utiliser un autre moyen",
+  "wl_email_resend": "Envoyer un nouveau code"
 }

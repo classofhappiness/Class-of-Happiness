@@ -2320,5 +2320,15 @@
   "wl_continue": "Continue",
   "wl_wrong_left": "Wrong answer. {n} tries left.",
   "wl_locked": "Too many wrong answers. Reset is locked for {n} minutes.",
-  "wl_no_password": "This account has no password, so the PIN can't be reset here. Please contact support."
+  "wl_no_password": "This account has no password, so the PIN can't be reset here. Please contact support.",
+  "wl_email_btn": "Email me a code",
+  "wl_email_sent": "We sent a 6-digit code to {email}. It is valid for 10 minutes.",
+  "wl_email_junk": "Check your Junk/Spam folder.",
+  "wl_code_placeholder": "6-digit code",
+  "wl_email_cooldown": "Please wait {n} seconds before asking for another code.",
+  "wl_email_hourly": "Too many codes requested. Try again in {n} minutes.",
+  "wl_email_failed": "We couldn't send the email. Please try again.",
+  "wl_email_no_address": "This account has no email address.",
+  "wl_use_other_way": "Use another way",
+  "wl_email_resend": "Send a new code"
 }

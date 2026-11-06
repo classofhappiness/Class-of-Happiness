@@ -2466,5 +2466,15 @@
   "wl_continue": "Weiter",
   "wl_wrong_left": "Falsche Antwort. Noch {n} Versuche.",
   "wl_locked": "Zu viele falsche Antworten. Das Zurücksetzen ist {n} Minuten gesperrt.",
-  "wl_no_password": "Dieses Konto hat kein Passwort, daher kann die PIN hier nicht zurückgesetzt werden. Bitte wende dich an den Support."
+  "wl_no_password": "Dieses Konto hat kein Passwort, daher kann die PIN hier nicht zurückgesetzt werden. Bitte wende dich an den Support.",
+  "wl_email_btn": "Code per E-Mail senden",
+  "wl_email_sent": "Wir haben einen 6-stelligen Code an {email} gesendet. Er ist 10 Minuten gültig.",
+  "wl_email_junk": "Sieh auch in deinem Junk-/Spam-Ordner nach.",
+  "wl_code_placeholder": "6-stelliger Code",
+  "wl_email_cooldown": "Bitte warte {n} Sekunden, bevor du einen weiteren Code anforderst.",
+  "wl_email_hourly": "Zu viele Codes angefordert. Versuche es in {n} Minuten erneut.",
+  "wl_email_failed": "Die E-Mail konnte nicht gesendet werden. Bitte versuche es erneut.",
+  "wl_email_no_address": "Dieses Konto hat keine E-Mail-Adresse.",
+  "wl_use_other_way": "Anderen Weg nutzen",
+  "wl_email_resend": "Neuen Code senden"
 }

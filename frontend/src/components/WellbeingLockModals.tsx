@@ -3,7 +3,7 @@ import { Modal, View, Text, TextInput, TouchableOpacity, ActivityIndicator, Styl
 import { KeyboardSafeView } from './KeyboardSafeView';
 import {
   WL_PROMPTS, WL_PROMPT_KEYS, WL_PROMPT_FALLBACK, WlPrompt, WlResult, WlStatus,
-  getLockStatus, saveLockHint, verifyLockReset,
+  getLockStatus, saveLockHint, verifyLockReset, sendLockEmailCode,
 } from '../utils/wellbeingLock';
 
 type T = (k: string) => string;
@@ -11,6 +11,10 @@ type T = (k: string) => string;
 function errorText(r: WlResult, t: T): string {
   if (r.code === 'locked') return (t('wl_locked') || 'Too many wrong answers. Reset is locked for {n} minutes.').replace('{n}', String(r.retryMinutes || 15));
   if (r.code === 'wrong') return (t('wl_wrong_left') || 'Wrong answer. {n} tries left.').replace('{n}', String(r.attemptsLeft ?? 0));
+  if (r.code === 'cooldown') return (t('wl_email_cooldown') || 'Please wait {n} seconds before asking for another code.').replace('{n}', String(r.retrySeconds || 60));
+  if (r.code === 'hourly') return (t('wl_email_hourly') || 'Too many codes requested. Try again in {n} minutes.').replace('{n}', String(r.retryMinutes || 60));
+  if (r.code === 'send_failed') return t('wl_email_failed') || "We couldn't send the email. Please try again.";
+  if (r.code === 'no_email') return t('wl_email_no_address') || 'This account has no email address.';
   if (r.status === 400 && r.message) return t('wl_hint_one_word') || 'The answer must be one word.';
   return t('error') || 'Error';
 }
@@ -73,10 +77,12 @@ export function WellbeingResetModal({ visible, scope, t, onVerified, onClose }: 
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [codeMode, setCodeMode] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState('');
 
   useEffect(() => {
     if (!visible) return;
-    setValue(''); setErr(''); setStatus(null); setLoading(true);
+    setValue(''); setErr(''); setStatus(null); setLoading(true); setCodeMode(false); setMaskedEmail('');
     getLockStatus(scope).then(s => {
       setStatus(s); setLoading(false);
       if (s && s.locked_minutes) setErr((t('wl_locked') || 'Too many wrong answers. Reset is locked for {n} minutes.').replace('{n}', String(s.locked_minutes)));
@@ -86,21 +92,36 @@ export function WellbeingResetModal({ visible, scope, t, onVerified, onClose }: 
   const submit = async () => {
     if (!value.trim()) return;
     setBusy(true); setErr('');
-    const r = status?.has_hint ? await verifyLockReset(scope, value, '') : await verifyLockReset(scope, '', value);
+    const r = codeMode ? await verifyLockReset(scope, '', '', value.trim())
+      : status?.has_hint ? await verifyLockReset(scope, value, '') : await verifyLockReset(scope, '', value);
     setBusy(false);
     if (r.ok) { onVerified(); return; }
     setValue('');
     setErr(errorText(r, t));
   };
 
-  const noWayToReset = !!status && !status.has_hint && !status.has_account_password;
+  const emailCode = async () => {
+    setBusy(true); setErr('');
+    const r = await sendLockEmailCode(scope);
+    setBusy(false);
+    if (r.ok) { setMaskedEmail(r.data?.email_masked || ''); setCodeMode(true); setValue(''); }
+    else setErr(errorText(r, t));
+  };
+
+  // The emailed code is always offered, so nobody is stuck even with no hint and no password.
+  const noWayToReset = false;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardSafeView style={st.overlay}>
         <View style={st.card}>
           <Text style={st.title}>{t('wellbeing_pin_reset') || 'Reset PIN'}</Text>
-          {loading || !status ? <ActivityIndicator style={{ marginVertical: 16 }} /> : noWayToReset ? (
-            <Text style={st.desc}>{t('wl_no_password') || "This account has no password, so the PIN can't be reset here. Please contact support."}</Text>
+          {loading || !status ? <ActivityIndicator style={{ marginVertical: 16 }} /> : codeMode ? (
+            <>
+              <Text style={st.desc}>{(t('wl_email_sent') || 'We sent a 6-digit code to {email}. It is valid for 10 minutes.').replace('{email}', maskedEmail)}</Text>
+              <Text style={st.desc}>{t('wl_email_junk') || 'Check your Junk/Spam folder.'}</Text>
+              <TextInput style={st.input} value={value} onChangeText={setValue} keyboardType="number-pad"
+                placeholder={t('wl_code_placeholder') || '6-digit code'} placeholderTextColor="#999" editable={!busy} maxLength={6} />
+            </>
           ) : (
             <>
               {status.has_hint && status.prompt ? (
@@ -121,6 +142,16 @@ export function WellbeingResetModal({ visible, scope, t, onVerified, onClose }: 
           {!noWayToReset && status ? (
             <TouchableOpacity style={st.primary} onPress={submit} disabled={busy}>
               {busy ? <ActivityIndicator color="white" /> : <Text style={st.primaryText}>{t('wl_continue') || 'Continue'}</Text>}
+            </TouchableOpacity>
+          ) : null}
+          {status ? (
+            <TouchableOpacity style={st.secondary} onPress={codeMode ? () => { setCodeMode(false); setValue(''); setErr(''); } : emailCode} disabled={busy}>
+              <Text style={st.linkText}>{codeMode ? (t('wl_use_other_way') || 'Use another way') : (t('wl_email_btn') || 'Email me a code')}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {codeMode ? (
+            <TouchableOpacity style={st.secondary} onPress={emailCode} disabled={busy}>
+              <Text style={st.linkText}>{t('wl_email_resend') || 'Send a new code'}</Text>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity style={st.secondary} onPress={onClose} disabled={busy}>
@@ -148,4 +179,5 @@ const st = StyleSheet.create({
   primaryText: { color: 'white', fontWeight: '700', fontSize: 15 },
   secondary: { paddingVertical: 12, alignItems: 'center' },
   secondaryText: { color: '#666', fontSize: 14 },
+  linkText: { color: '#5C6BC0', fontSize: 14, fontWeight: '600' },
 });
