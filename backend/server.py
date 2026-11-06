@@ -20821,19 +20821,35 @@ def _wl_now() -> datetime:
     return datetime.now(timezone.utc)
 
 def _wl_parse(ts) -> Optional[datetime]:
+    """Parses a Postgres timestamptz string. Postgres drops trailing zeros from the fraction
+    (e.g. '...:31.75013+00:00'), and datetime.fromisoformat() before Python 3.11 only accepts 3 or
+    6 fractional digits - the fraction is padded to 6 first. (This was the cause of the early
+    'accepted a correct answer while locked' result: a lock whose timestamp had a 5-digit fraction
+    was read as 'no lock'. The lock check itself is now done in SQL; this only feeds /status.)"""
     if not ts:
         return None
     try:
-        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        v = str(ts).replace("Z", "+00:00")
+        m = re.match(r"^(.*?\.)(\d+)(.*)$", v)
+        if m:
+            v = m.group(1) + (m.group(2) + "000000")[:6] + m.group(3)
+        return datetime.fromisoformat(v)
     except Exception:
         return None
 
+# The lock endpoints do their database work in worker threads (so concurrent requests really do
+# run concurrently and the PBKDF2 check does not stall the event loop). The shared client above is
+# HTTP/2 and is not safe to hammer from many threads at once (ReadError), so these use their own
+# HTTP/1.1 connection pool.
+_wl_httpx = httpx.Client(timeout=30, limits=httpx.Limits(max_connections=20), follow_redirects=True)
+_wl_db: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY, options=ClientOptions(httpx_client=_wl_httpx))
+
 def _wl_row(user_id: str, scope: str) -> dict:
-    r = supabase.table("wellbeing_locks").select("*").eq("user_id", user_id).eq("scope", scope).execute()
+    r = _wl_db.table("wellbeing_locks").select("*").eq("user_id", user_id).eq("scope", scope).execute()
     return (r.data or [None])[0] or {}
 
 def _wl_save(user_id: str, scope: str, fields: dict) -> None:
-    supabase.table("wellbeing_locks").upsert(
+    _wl_db.table("wellbeing_locks").upsert(
         {"user_id": user_id, "scope": scope, "updated_at": _wl_now().isoformat(), **fields},
         on_conflict="user_id,scope").execute()
 
@@ -20843,25 +20859,35 @@ def _wl_locked_minutes(user_id: str) -> int:
         return max(1, int((until - _wl_now()).total_seconds() // 60) + 1)
     return 0
 
-def _wl_require_not_locked(user_id: str) -> None:
-    mins = _wl_locked_minutes(user_id)
-    if mins:
+def _wl_rpc(fn: str, params: dict) -> dict:
+    r = _wl_db.rpc(fn, params).execute()
+    return r.data if isinstance(r.data, (dict, bool)) else (r.data or {})
+
+def _wl_raise(res: dict) -> None:
+    if res.get("status") == "locked":
+        mins = int(res.get("minutes") or WL_LOCK_MINUTES)
         raise HTTPException(status_code=429, detail={"code": "locked", "retry_after_minutes": mins},
                             headers={"Retry-After": str(mins * 60)})
+    raise HTTPException(status_code=403, detail={"code": "wrong", "attempts_left": int(res.get("attempts_left") or 0)})
 
-def _wl_wrong(user_id: str) -> None:
-    row = _wl_row(user_id, "_limiter")
-    count = int(row.get("fail_count") or 0) + 1
-    if count >= WL_MAX_WRONG:
-        _wl_save(user_id, "_limiter", {"fail_count": 0, "locked_until": (_wl_now() + timedelta(minutes=WL_LOCK_MINUTES)).isoformat()})
-        logger.warning(f"[wellbeing-lock] reset locked for {WL_LOCK_MINUTES} min user_id={user_id}")
-        raise HTTPException(status_code=429, detail={"code": "locked", "retry_after_minutes": WL_LOCK_MINUTES},
-                            headers={"Retry-After": str(WL_LOCK_MINUTES * 60)})
-    _wl_save(user_id, "_limiter", {"fail_count": count, "locked_until": None})
-    raise HTTPException(status_code=403, detail={"code": "wrong", "attempts_left": WL_MAX_WRONG - count})
-
-def _wl_right(user_id: str) -> None:
-    _wl_save(user_id, "_limiter", {"fail_count": 0, "locked_until": None})
+def _wl_attempt(uid: str, scope: str, check, grant_reset: bool = False) -> None:
+    """One checked attempt, atomic per user (SQL functions wl_begin_attempt / wl_finish_attempt,
+    each a single transaction holding a row lock on the user's '_limiter' row). The attempt is
+    counted and the lock is checked BEFORE the answer is verified; a correct answer is rejected if
+    a lock is in force when it is recorded; the reset token is only granted in the same transaction
+    as a successful, unlocked check. Raises HTTPException unless the check passed."""
+    begin = _wl_rpc("wl_begin_attempt", {"p_user": uid, "p_max": WL_MAX_WRONG, "p_lock_minutes": WL_LOCK_MINUTES})
+    if begin.get("status") != "proceed":
+        _wl_raise(begin)
+    if begin.get("self_locked"):
+        logger.warning(f"[wellbeing-lock] reset locked for {WL_LOCK_MINUTES} min user_id={uid}")
+    ok = bool(check())
+    fin = _wl_rpc("wl_finish_attempt", {
+        "p_user": uid, "p_scope": scope, "p_ok": ok, "p_self_locked": bool(begin.get("self_locked")),
+        "p_grant_reset": bool(grant_reset and ok), "p_max": WL_MAX_WRONG, "p_reset_minutes": WL_RESET_WINDOW_MINUTES,
+    })
+    if fin.get("status") != "ok":
+        _wl_raise(fin)
 
 async def _wl_user_and_scope(request: Request, scope: str) -> dict:
     user = await get_current_user(request)
@@ -20872,7 +20898,7 @@ async def _wl_user_and_scope(request: Request, scope: str) -> dict:
     return user
 
 def _wl_account_password_ok(user_id: str, password: str) -> bool:
-    r = supabase.table("users").select("portal_password").eq("user_id", user_id).execute()
+    r = _wl_db.table("users").select("portal_password").eq("user_id", user_id).execute()
     stored = ((r.data or [{}])[0].get("portal_password") or "")
     return bool(password) and bool(stored) and verify_password(password, stored)
 
@@ -20890,19 +20916,29 @@ class WellbeingResetBody(BaseModel):
 @api_router.get("/wellbeing-lock/status")
 async def wellbeing_lock_status(scope: str, request: Request):
     user = await _wl_user_and_scope(request, scope)
-    row = _wl_row(user["user_id"], scope)
+    row = await run_in_threadpool(_wl_row, user["user_id"], scope)
     has_hint = bool(row.get("hint_hash"))
     has_password = False
     if not has_hint:
-        r = supabase.table("users").select("portal_password").eq("user_id", user["user_id"]).execute()
+        r = await run_in_threadpool(lambda: _wl_db.table("users").select("portal_password").eq("user_id", user["user_id"]).execute())
         has_password = bool((r.data or [{}])[0].get("portal_password"))
     return {"has_hint": has_hint, "prompt": row.get("hint_prompt") if has_hint else None,
-            "has_account_password": has_password, "locked_minutes": _wl_locked_minutes(user["user_id"])}
+            "has_account_password": has_password, "locked_minutes": await run_in_threadpool(_wl_locked_minutes, user["user_id"])}
+
+def _wl_set_hint_sync(uid: str, body: "WellbeingHintBody", norm: str) -> None:
+    row = _wl_row(uid, body.scope)
+    if row.get("hint_hash"):
+        # Changing an existing hint needs the single-use token from a verified reset (consumed
+        # atomically, refused while locked) or the current answer (a counted, locked-checked attempt).
+        if not _wl_rpc("wl_consume_reset", {"p_user": uid, "p_scope": body.scope}):
+            cur = _wl_norm_answer(body.current_answer)
+            _wl_attempt(uid, body.scope, lambda: bool(cur) and _wl_check(cur, row["hint_hash"]))
+    _wl_save(uid, body.scope, {"hint_prompt": body.prompt, "hint_hash": _wl_hash(norm), "reset_ok_until": None})
 
 @api_router.put("/wellbeing-lock/hint")
 async def wellbeing_lock_set_hint(body: WellbeingHintBody, request: Request):
-    """Set the hint. Allowed when none exists yet, within 10 minutes of a successful reset, or when
-    the current answer is supplied and right (counted against the same 5-wrong limit)."""
+    """Set the hint. Allowed when none exists yet, with the single-use token from a verified reset,
+    or when the current answer is supplied and right (counted against the same 5-wrong limit)."""
     user = await _wl_user_and_scope(request, body.scope)
     uid = user["user_id"]
     if body.prompt not in WL_PROMPTS:
@@ -20910,40 +20946,28 @@ async def wellbeing_lock_set_hint(body: WellbeingHintBody, request: Request):
     norm = _wl_norm_answer(body.answer)
     if not _wl_valid_answer(norm):
         raise HTTPException(status_code=400, detail="The answer must be a single word")
-    row = _wl_row(uid, body.scope)
-    if row.get("hint_hash"):
-        reset_ok = _wl_parse(row.get("reset_ok_until"))
-        if not (reset_ok and reset_ok > _wl_now()):
-            _wl_require_not_locked(uid)
-            cur = _wl_norm_answer(body.current_answer)
-            if not cur or not _wl_check(cur, row["hint_hash"]):
-                _wl_wrong(uid)
-            _wl_right(uid)
-    _wl_save(uid, body.scope, {"hint_prompt": body.prompt, "hint_hash": _wl_hash(norm), "reset_ok_until": None})
+    await run_in_threadpool(_wl_set_hint_sync, uid, body, norm)
     logger.info(f"[wellbeing-lock] hint set user_id={uid}")
     return {"status": "saved"}
+
+def _wl_reset_sync(uid: str, body: "WellbeingResetBody") -> str:
+    row = _wl_row(uid, body.scope)
+    if row.get("hint_hash"):
+        norm = _wl_norm_answer(body.answer)
+        _wl_attempt(uid, body.scope, lambda: bool(norm) and _wl_check(norm, row["hint_hash"]), grant_reset=True)
+        return "hint"
+    _wl_attempt(uid, body.scope, lambda: _wl_account_password_ok(uid, body.password), grant_reset=True)
+    return "password"
 
 @api_router.post("/wellbeing-lock/reset")
 async def wellbeing_lock_reset(body: WellbeingResetBody, request: Request):
     """Proves the person may choose a new PIN. Hint set: the one-word answer. No hint yet: the
     account login password. Existing entries are NOT deleted; they stay behind the new PIN, which
-    can only be chosen by someone who passed this check."""
+    can only be chosen by someone who passed this check. Success grants a 10-minute, single-use token."""
     user = await _wl_user_and_scope(request, body.scope)
-    uid = user["user_id"]
-    _wl_require_not_locked(uid)
-    row = _wl_row(uid, body.scope)
-    if row.get("hint_hash"):
-        norm = _wl_norm_answer(body.answer)
-        ok = bool(norm) and _wl_check(norm, row["hint_hash"])
-    else:
-        ok = _wl_account_password_ok(uid, body.password)
-    if not ok:
-        _wl_wrong(uid)
-    _wl_right(uid)
-    _wl_save(uid, body.scope, {"reset_ok_until": (_wl_now() + timedelta(minutes=WL_RESET_WINDOW_MINUTES)).isoformat()})
-    logger.info(f"[wellbeing-lock] reset verified user_id={uid} via={'hint' if row.get('hint_hash') else 'password'}")
+    via = await run_in_threadpool(_wl_reset_sync, user["user_id"], body)
+    logger.info(f"[wellbeing-lock] reset verified user_id={user['user_id']} via={via}")
     return {"status": "ok"}
-
 
 # ── EXPORT FORMAT PICKER (Phase 2.5 item 4) ─────────────────────────────
 # Shared PDF/Excel/Word builders for Services Directory + Wellbeing Tracker - portal
