@@ -20779,6 +20779,9 @@ WL_PROMPTS = ("pet", "hobby", "place")
 WL_MAX_WRONG = 5
 WL_LOCK_MINUTES = 15
 WL_RESET_WINDOW_MINUTES = 10
+WL_CODE_VALID_MINUTES = 10
+WL_CODE_COOLDOWN_SECONDS = 60
+WL_CODE_MAX_PER_HOUR = 5
 _WL_SCOPE_RE = re.compile(r"^(teacher|member:[A-Za-z0-9_\-]{1,64})$")
 
 def _wl_norm_answer(answer: str) -> str:
@@ -20880,6 +20883,10 @@ class WellbeingResetBody(BaseModel):
     scope: str = Field(max_length=80)
     answer: str = Field(default="", max_length=100)
     password: str = Field(default="", max_length=200)
+    code: str = Field(default="", max_length=20)
+
+class WellbeingEmailCodeBody(BaseModel):
+    scope: str = Field(max_length=80)
 
 @api_router.get("/wellbeing-lock/status")
 async def wellbeing_lock_status(scope: str, request: Request):
@@ -20918,7 +20925,46 @@ async def wellbeing_lock_set_hint(body: WellbeingHintBody, request: Request):
     logger.info(f"[wellbeing-lock] hint set user_id={uid}")
     return {"status": "saved"}
 
+def _wl_mask_email(email: str) -> str:
+    local, _, domain = (email or "").partition("@")
+    return f"{local[:1]}***@{domain}" if local and domain else "***"
+
+def _wl_code_check(uid: str, scope: str, code_in: str):
+    """Returns the check() for an emailed code: right format, a stored code that has not expired,
+    the right value, and then used up atomically (wl_consume_code) so it works exactly once."""
+    code = (code_in or "").strip()
+    def check() -> bool:
+        if not re.fullmatch(r"\d{6}", code):
+            return False
+        row = _wl_row(uid, scope)
+        stored, exp = row.get("email_code_hash"), _wl_parse(row.get("email_code_expires_at"))
+        if not stored or not exp or exp <= _wl_now() or not _wl_check(code, stored):
+            return False
+        return bool(_wl_rpc("wl_consume_code", {"p_user": uid, "p_scope": scope, "p_code_hash": stored}))
+    return check
+
+def _wl_issue_code_sync(uid: str, scope: str) -> str:
+    """Rate-checks (60 s cooldown, 5 per hour, refused while locked), stores only a salted hash of a
+    fresh 6-digit code, and returns the code. The code is never logged."""
+    code = f"{secrets.randbelow(10**6):06d}"
+    res = _wl_rpc("wl_issue_code", {"p_user": uid, "p_scope": scope, "p_code_hash": _wl_hash(code),
+                                    "p_valid_minutes": WL_CODE_VALID_MINUTES, "p_cooldown_seconds": WL_CODE_COOLDOWN_SECONDS,
+                                    "p_max_per_hour": WL_CODE_MAX_PER_HOUR})
+    st = res.get("status")
+    if st == "ok":
+        return code
+    if st == "cooldown":
+        secs = int(res.get("seconds") or WL_CODE_COOLDOWN_SECONDS)
+        raise HTTPException(status_code=429, detail={"code": "cooldown", "retry_after_seconds": secs}, headers={"Retry-After": str(secs)})
+    if st == "hourly":
+        mins = int(res.get("minutes") or 60)
+        raise HTTPException(status_code=429, detail={"code": "hourly", "retry_after_minutes": mins}, headers={"Retry-After": str(mins * 60)})
+    _wl_raise(res)
+
 def _wl_reset_sync(uid: str, body: "WellbeingResetBody") -> str:
+    if body.code:
+        _wl_attempt(uid, body.scope, _wl_code_check(uid, body.scope, body.code), grant_reset=True)
+        return "email-code"
     row = _wl_row(uid, body.scope)
     if row.get("hint_hash"):
         norm = _wl_norm_answer(body.answer)
@@ -20926,6 +20972,26 @@ def _wl_reset_sync(uid: str, body: "WellbeingResetBody") -> str:
         return "hint"
     _wl_attempt(uid, body.scope, lambda: _wl_account_password_ok(uid, body.password), grant_reset=True)
     return "password"
+
+@api_router.post("/wellbeing-lock/email-code")
+async def wellbeing_lock_email_code(body: WellbeingEmailCodeBody, request: Request):
+    """Emails a 6-digit PIN-reset code to the logged-in account's OWN address only (read from the
+    account, never from the request). Valid 10 minutes, single use, stored hashed. A correct code
+    is later submitted to /wellbeing-lock/reset (field `code`) and counts against the same
+    5-wrong / 15-minute limiter as the hint answers."""
+    user = await _wl_user_and_scope(request, body.scope)
+    uid = user["user_id"]
+    r = await run_in_threadpool(lambda: _wl_db.table("users").select("email,language").eq("user_id", uid).execute())
+    row = (r.data or [{}])[0]
+    email = (row.get("email") or "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail={"code": "no_email"})
+    code = await run_in_threadpool(_wl_issue_code_sync, uid, body.scope)
+    ok, _info = await run_in_threadpool(_send_wellbeing_code_email, email, code, _email_lang(row.get("language"), request.headers.get("accept-language")))
+    if not ok:
+        raise HTTPException(status_code=502, detail={"code": "send_failed"})
+    logger.info(f"[wellbeing-lock] reset code emailed user_id={uid}")
+    return {"status": "sent", "email_masked": _wl_mask_email(email), "valid_minutes": WL_CODE_VALID_MINUTES}
 
 @api_router.post("/wellbeing-lock/reset")
 async def wellbeing_lock_reset(body: WellbeingResetBody, request: Request):
@@ -26661,6 +26727,10 @@ _EMAIL_TEXTS = {
         'vh': "Verify your email",
         'vb': "Enter this code in the app to verify your email address:",
         've': "This code expires in 30 minutes.",
+        'ws': "Your Class of Happiness PIN reset code",
+        'wh': "Reset your PIN",
+        'wb': "Enter this code in the app to choose a new PIN for My Wellbeing or Teacher Check-in. Nobody at Class of Happiness will ever ask you for this code.",
+        'we': "This code expires in 10 minutes and works once.",
     },
     'pt': {
         'rs': "Repor a palavra-passe do Class of Happiness",
@@ -26676,6 +26746,10 @@ _EMAIL_TEXTS = {
         'vh': "Confirma o teu email",
         'vb': "Introduz este código na aplicação para confirmar o teu endereço de email:",
         've': "Este código expira dentro de 30 minutos.",
+        'ws': "O teu código para repor o PIN da Class of Happiness",
+        'wh': "Repor o teu PIN",
+        'wb': "Introduz este código na app para escolher um novo PIN para o Meu Bem-estar ou o Check-in do Professor. Ninguém da Class of Happiness te vai pedir este código.",
+        'we': "Este código expira dentro de 10 minutos e só pode ser usado uma vez.",
     },
     'es': {
         'rs': "Restablece tu contraseña de Class of Happiness",
@@ -26691,6 +26765,10 @@ _EMAIL_TEXTS = {
         'vh': "Verifica tu correo",
         'vb': "Introduce este código en la aplicación para verificar tu dirección de correo:",
         've': "Este código caduca en 30 minutos.",
+        'ws': "Tu código para restablecer el PIN de Class of Happiness",
+        'wh': "Restablecer tu PIN",
+        'wb': "Introduce este código en la app para elegir un PIN nuevo para Mi Bienestar o el Check-in del Profesor. Nadie de Class of Happiness te pedirá nunca este código.",
+        'we': "Este código caduca en 10 minutos y solo se puede usar una vez.",
     },
     'fr': {
         'rs': "Réinitialisez votre mot de passe Class of Happiness",
@@ -26706,6 +26784,10 @@ _EMAIL_TEXTS = {
         'vh': "Vérifiez votre e-mail",
         'vb': "Saisissez ce code dans l'application pour vérifier votre adresse e-mail :",
         've': "Ce code expire dans 30 minutes.",
+        'ws': "Ton code de réinitialisation du code PIN Class of Happiness",
+        'wh': "Réinitialiser ton code PIN",
+        'wb': "Saisis ce code dans l'appli pour choisir un nouveau code PIN pour Mon bien-être ou le Check-in de l'enseignant. Personne chez Class of Happiness ne te demandera jamais ce code.",
+        'we': "Ce code expire dans 10 minutes et ne fonctionne qu'une fois.",
     },
     'de': {
         'rs': "Setzen Sie Ihr Class-of-Happiness-Passwort zurück",
@@ -26721,6 +26803,10 @@ _EMAIL_TEXTS = {
         'vh': "E-Mail-Adresse bestätigen",
         'vb': "Geben Sie diesen Code in der App ein, um Ihre E-Mail-Adresse zu bestätigen:",
         've': "Dieser Code läuft in 30 Minuten ab.",
+        'ws': "Dein Code zum Zurücksetzen der PIN bei Class of Happiness",
+        'wh': "PIN zurücksetzen",
+        'wb': "Gib diesen Code in der App ein, um eine neue PIN für Mein Wohlbefinden oder den Lehrer-Check-in zu wählen. Niemand von Class of Happiness wird dich jemals nach diesem Code fragen.",
+        'we': "Dieser Code läuft in 10 Minuten ab und kann nur einmal verwendet werden.",
     },
     'it': {
         'rs': "Reimposta la tua password di Class of Happiness",
@@ -26736,6 +26822,10 @@ _EMAIL_TEXTS = {
         'vh': "Verifica la tua email",
         'vb': "Inserisci questo codice nell'app per verificare il tuo indirizzo email:",
         've': "Questo codice scade tra 30 minuti.",
+        'ws': "Il tuo codice per reimpostare il PIN di Class of Happiness",
+        'wh': "Reimposta il tuo PIN",
+        'wb': "Inserisci questo codice nell'app per scegliere un nuovo PIN per Il mio benessere o il Check-in dell'insegnante. Nessuno di Class of Happiness ti chiederà mai questo codice.",
+        'we': "Questo codice scade tra 10 minuti e può essere usato una sola volta.",
     },
     'ru': {
         'rs': "Сброс пароля Class of Happiness",
@@ -26751,6 +26841,10 @@ _EMAIL_TEXTS = {
         'vh': "Подтвердите адрес электронной почты",
         'vb': "Введите этот код в приложении, чтобы подтвердить адрес электронной почты:",
         've': "Код действителен 30 минут.",
+        'ws': "Ваш код для сброса PIN-кода Class of Happiness",
+        'wh': "Сброс PIN-кода",
+        'wb': "Введите этот код в приложении, чтобы выбрать новый PIN-код для «Моего самочувствия» или чек-ина учителя. Никто из Class of Happiness никогда не попросит у вас этот код.",
+        'we': "Код действителен 10 минут и работает один раз.",
     },
     'zh': {
         'rs': "重置您的 Class of Happiness 密码",
@@ -26766,6 +26860,10 @@ _EMAIL_TEXTS = {
         'vh': "验证您的邮箱",
         'vb': "请在应用中输入此验证码以验证您的邮箱地址：",
         've': "此验证码 30 分钟后失效。",
+        'ws': "您的 Class of Happiness PIN 重置验证码",
+        'wh': "重置您的 PIN",
+        'wb': "请在应用中输入此验证码，为“我的身心状态”或教师签到设置新的 PIN。Class of Happiness 的任何人都不会向您索取此验证码。",
+        'we': "此验证码 10 分钟后失效，且只能使用一次。",
     },
     'hi': {
         'rs': "अपना Class of Happiness पासवर्ड रीसेट करें",
@@ -26781,6 +26879,10 @@ _EMAIL_TEXTS = {
         'vh': "अपना ईमेल सत्यापित करें",
         'vb': "अपना ईमेल पता सत्यापित करने के लिए ऐप में यह कोड दर्ज करें:",
         've': "यह कोड 30 मिनट में समाप्त हो जाएगा।",
+        'ws': "आपका Class of Happiness PIN रीसेट कोड",
+        'wh': "अपना PIN रीसेट करें",
+        'wb': "ऐप में यह कोड दर्ज करके 'मेरी भलाई' या शिक्षक चेक-इन के लिए नया PIN चुनें। Class of Happiness से कोई भी आपसे यह कोड कभी नहीं माँगेगा।",
+        'we': "यह कोड 10 मिनट में समाप्त हो जाएगा और सिर्फ़ एक बार काम करेगा।",
     },
     'ar': {
         'rs': "إعادة تعيين كلمة مرور Class of Happiness",
@@ -26796,6 +26898,10 @@ _EMAIL_TEXTS = {
         'vh': "تحقق من بريدك الإلكتروني",
         'vb': "أدخل هذا الرمز في التطبيق للتحقق من عنوان بريدك الإلكتروني:",
         've': "تنتهي صلاحية هذا الرمز بعد 30 دقيقة.",
+        'ws': "رمز إعادة تعيين PIN في Class of Happiness",
+        'wh': "إعادة تعيين رمز PIN",
+        'wb': "أدخل هذا الرمز في التطبيق لاختيار رمز PIN جديد لقسم «صحتي النفسية» أو تسجيل المعلم. لن يطلب منك أحد في Class of Happiness هذا الرمز أبدًا.",
+        'we': "تنتهي صلاحية هذا الرمز بعد 10 دقائق ويعمل مرة واحدة فقط.",
     },
 }
 
@@ -26835,6 +26941,25 @@ def _build_code_email(lang: str, code: str, purpose: str) -> tuple:
     p = "l" if purpose == "login" else "v"
     box = f"""<div dir="ltr" style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;font-family:monospace;font-size:24px;letter-spacing:4px;text-align:center;color:#1A1A2E">{code}</div>"""
     return t[p + "s"], _email_html(lang, t[p + "h"], t[p + "b"], box, t["le"] if p == "l" else t["ve"], t["ig"])
+
+def _build_wellbeing_code_email(lang: str, code: str) -> tuple:
+    lang = lang if lang in _EMAIL_TEXTS else "en"
+    t = _EMAIL_TEXTS[lang]
+    box = f"""<div dir="ltr" style="background:#F5F5F5;border-radius:10px;padding:16px;margin:16px 0;font-family:monospace;font-size:24px;letter-spacing:4px;text-align:center;color:#1A1A2E">{code}</div>"""
+    return t["ws"], _email_html(lang, t["wh"], t["wb"], box, t["we"], t["ig"])
+
+def _send_wellbeing_code_email(email: str, code: str, lang: str = "en") -> tuple:
+    """Emails the PIN-reset code. Never raises, never logs the code (nor the address)."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+    try:
+        subject, html = _build_wellbeing_code_email(lang, code)
+        result = resend.Emails.send({"from": RESEND_FROM_EMAIL, "to": [email], "subject": subject, "html": html})
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        return True, email_id or "sent"
+    except Exception as e:
+        logger.error(f"[wellbeing-lock] code email send failed: {type(e).__name__}")
+        return False, "send failed"
 
 def _send_password_reset_email(email: str, token: str, lang: str = "en") -> tuple:
     """Returns (sent: bool, detail: str). Never raises - a broken email provider must not
