@@ -41,6 +41,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Supabase
 from supabase import create_client, Client
+from timeparse import fromiso as _fromiso, fromiso_or_none as _fromiso_or_none   # one parser for every Supabase timestamp (see timeparse.py)
 from supabase.client import ClientOptions
 
 ROOT_DIR = Path(__file__).parent
@@ -2764,22 +2765,9 @@ class LogEngagementEventRequest(BaseModel):
 
 # ================== AUTH HELPERS ==================
 def _parse_supabase_timestamp(ts: str) -> datetime:
-    """Real bug fix Sep 10: Postgres/PostgREST serializes timestamptz with variable
-    fractional-second precision (trailing zeros stripped) - e.g. '.04663' (5 digits)
-    instead of a clean 0/3/6-digit fraction. This server's Python version's
-    datetime.fromisoformat only accepts 0, 3, or 6 digit fractions and raises ValueError
-    on anything else - confirmed live: this silently broke get_current_user's session-
-    expiry check (caught by its own broad except, logged as "Auth error", returned as an
-    ordinary 401/403) for any session whose expires_at happened to round-trip through
-    Postgres with an awkward digit count - a random-looking, intermittent auth failure
-    with no code-level pattern, not specific to any one account or feature. Pads/truncates
-    the fractional-seconds portion to exactly 6 digits before parsing."""
-    ts = ts.replace("Z", "+00:00")
-    m = re.match(r"^(.*?\.)(\d+)([+-]\d{2}:\d{2})$", ts)
-    if m:
-        frac = (m.group(2) + "000000")[:6]
-        ts = m.group(1) + frac + m.group(3)
-    return datetime.fromisoformat(ts)
+    """Kept for existing callers; see timeparse.fromiso (Postgres strips trailing zeros from the
+    fraction, e.g. '.04663', which datetime.fromisoformat rejects before Python 3.11)."""
+    return _fromiso(ts)
 
 # ================== AUTH CACHE (Sep 26, item 27) ==================
 # Root cause confirmed live (item 26's own latency investigation): every one of the ~306
@@ -3035,7 +3023,7 @@ def _get_current_user_sync(request: Request) -> Optional[dict]:
                 kiosk_session = kiosk_r.data[0]
                 if kiosk_session.get("revoked_at"):
                     return None
-                k_expires = datetime.fromisoformat(kiosk_session["expires_at"].replace("Z", "+00:00"))
+                k_expires = _fromiso(kiosk_session["expires_at"])
                 if k_expires < datetime.now(timezone.utc):
                     return None
                 return {
@@ -3182,10 +3170,10 @@ def _trial_is_valid(user: dict) -> bool:
         return False
     exp = user.get("subscription_expires_at")
     if exp:
-        return datetime.fromisoformat(exp.replace("Z", "+00:00")) > datetime.now(timezone.utc)
+        return _fromiso(exp) > datetime.now(timezone.utc)
     start = user.get("trial_started_at")
     if start:
-        return datetime.now(timezone.utc) < datetime.fromisoformat(start.replace("Z", "+00:00")) + timedelta(days=TRIAL_DURATION_DAYS)
+        return datetime.now(timezone.utc) < _fromiso(start) + timedelta(days=TRIAL_DURATION_DAYS)
     return False
 
 # Billing grace (Jono-approved, Oct 31): a failed renewal does not lock a parent/teacher plan
@@ -3198,13 +3186,7 @@ RENEWAL_SLACK_HOURS = 24
 
 def _parse_iso(value):
     """Aware datetime from an ISO string, or None when missing/unparseable."""
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except (ValueError, TypeError):
-        return None
+    return _fromiso_or_none(value)
 
 def _past_due_grace_ends_at(user: dict):
     """When this account's payment grace ends (past_due_since + PAST_DUE_GRACE_DAYS), or None."""
@@ -5974,7 +5956,7 @@ async def get_family_members(request: Request):
     else:
         active_student_ids = [
             l["student_id"] for l in (pl.data or [])
-            if l.get("student_id") and (not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z","+00:00")) > datetime.now(timezone.utc))
+            if l.get("student_id") and (not l.get("expires_at") or _fromiso(l["expires_at"]) > datetime.now(timezone.utc))
         ]
 
     classroom_map = {}
@@ -6314,7 +6296,7 @@ def _is_authorized_for_student_core(user: dict, student_id: str, student_data: d
     try:
         pl = f_pl.result()
         for l in (pl.data or []):
-            if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
+            if not l.get("expires_at") or _fromiso(l["expires_at"]) > datetime.now(timezone.utc):
                 return True
     except Exception as e:
         logger.debug(f"[parent-link-check] parent_links lookup failed: {e}")
@@ -6399,7 +6381,7 @@ def _batch_authorized_student_ids_sync(user: dict, student_ids: list, students_b
         pl = supabase.table("parent_links").select("student_id,expires_at").eq("parent_user_id", uid).in_("student_id", remaining).execute()
         now = datetime.now(timezone.utc)
         for l in (pl.data or []):
-            if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > now:
+            if not l.get("expires_at") or _fromiso(l["expires_at"]) > now:
                 authorized.add(l["student_id"])
 
     remaining2 = [sid for sid in ids if sid not in authorized]
@@ -6617,7 +6599,7 @@ async def kiosk_setup(request: Request):
     if not result.data:
         raise HTTPException(status_code=400, detail="Code not found or already used")
     pairing = result.data[0]
-    expires_at = datetime.fromisoformat(pairing["expires_at"].replace("Z", "+00:00"))
+    expires_at = _fromiso(pairing["expires_at"])
     if expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Code expired - ask your teacher for a new one")
 
@@ -6967,7 +6949,7 @@ def _school_grace_period_expired_uncached(school_admin_id: str) -> bool:
         r = supabase.table("school_profiles").select("subscription_renewal_date").eq("school_admin_user_id", school_admin_id).execute()
         if not r.data or not r.data[0].get("subscription_renewal_date"):
             return False
-        renewal = datetime.fromisoformat(r.data[0]["subscription_renewal_date"].replace("Z", "+00:00"))
+        renewal = _fromiso(r.data[0]["subscription_renewal_date"])
         grace_end = renewal + timedelta(days=SCHOOL_RENEWAL_GRACE_DAYS)
         return datetime.now(timezone.utc) > grace_end
     except Exception as e:
@@ -7170,7 +7152,7 @@ async def link_child(body: LinkChildRequest, request: Request):
         raise HTTPException(status_code=404, detail="Invalid link code")
     student = result.data[0]
     if student.get("link_code_expires_at"):
-        exp = datetime.fromisoformat(student["link_code_expires_at"].replace("Z", "+00:00"))
+        exp = _fromiso(student["link_code_expires_at"])
         if exp < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Link code expired")
 
@@ -10580,7 +10562,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
         for h in log.get("helpers_selected", log.get("strategies_selected",[])):
             if h: helper_counts[h] = helper_counts.get(h,0)+1
         try:
-            ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
+            ts = _fromiso(log["timestamp"])
             dk = ts.strftime("%Y-%m-%d")
             if dk not in daily_counts: daily_counts[dk] = {"blue":0,"green":0,"yellow":0,"red":0}
             if colour in daily_counts[dk]: daily_counts[dk][colour] += 1
@@ -10834,7 +10816,7 @@ def _generate_family_member_pdf_bytes_sync(fm: dict, family_member_id: str, year
     log_data = [[Paragraph(pdf_t(report_lang, "fam_col_date"), _lg_hdr), Paragraph(pdf_t(report_lang, "fam_col_time"), _lg_hdr), Paragraph(pdf_t(report_lang, "fam_col_emotion"), _lg_hdr), Paragraph(pdf_t(report_lang, "fam_col_strategies"), _lg_hdr)]]
     for log in logs_data[-40:]:
         try:
-            ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
+            ts = _fromiso(log["timestamp"])
             date_str = (f"{ts.month}月{ts.day}日" if report_lang == "zh" else f"{ts.day:02d} {MON_ABBR[ts.month-1]}"); time_str = ts.strftime("%H:%M")
         except Exception as e:
             logger.debug(f"[checkin-log-pdf-date] malformed timestamp: {e}")
@@ -10979,7 +10961,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         try:
             pl = supabase.table("parent_links").select("id,expires_at").eq("parent_user_id", user["user_id"]).eq("student_id", student_id).execute()
             for l in (pl.data or []):
-                if not l.get("expires_at") or datetime.fromisoformat(l["expires_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc):
+                if not l.get("expires_at") or _fromiso(l["expires_at"]) > datetime.now(timezone.utc):
                     is_authorized = True
                     break
         except Exception as e:
@@ -11007,7 +10989,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         needs_reset = True
         if reset_at:
             try:
-                reset_dt = datetime.fromisoformat(reset_at.replace("Z", "+00:00"))
+                reset_dt = _fromiso(reset_at)
                 needs_reset = (now.year, now.month) != (reset_dt.year, reset_dt.month)
             except Exception:
                 needs_reset = True
@@ -11121,7 +11103,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
             if h and h not in _NON_STRATEGY_IDS:
                 helper_counts[h] = helper_counts.get(h, 0) + 1
         try:
-            ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+            ts = _fromiso(log["timestamp"])
             date_key = ts.strftime("%Y-%m-%d")
             if date_key not in daily_counts:
                 daily_counts[date_key] = {"blue":0,"green":0,"yellow":0,"red":0}
@@ -11621,7 +11603,7 @@ async def generate_pdf_report(student_id: str, year: int, month: int, request: R
         ]]
         for log in logs_data:
             try:
-                ts       = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+                ts       = _fromiso(log["timestamp"])
                 date_str = f"{ts.month}月{ts.day}日" if lang == "zh" else f"{ts.day:02d} {MON_ABBR[ts.month-1]}"
                 time_str = ts.strftime("%H:%M")
             except Exception as e:
@@ -11896,7 +11878,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
             if name:
                 strategy_counts[name] = strategy_counts.get(name, 0) + 1
         try:
-            ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+            ts = _fromiso(log["timestamp"])
             dk = ts.strftime("%Y-%m-%d")
             if dk not in daily_zones:
                 daily_zones[dk] = zone
@@ -12102,7 +12084,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         req_data = [[th(pdf_t(lang, "tw_col_date_time")), th(pdf_t(lang, "tw_col_message"))]]
         for req in support_requests:
             try:
-                ts = datetime.fromisoformat(req["created_at"].replace("Z", "+00:00"))
+                ts = _fromiso(req["created_at"])
                 dt_str = _tw_dt(ts, True)
             except Exception as e:
                 logger.debug(f"[pdf-support-request-date] malformed timestamp: {e}")
@@ -12128,7 +12110,7 @@ async def generate_teacher_wellbeing_pdf(user_id: str, year: int, month: int, re
         log_data = [[th(pdf_t(lang, "tw_col_date")), th(pdf_t(lang, "tw_col_emotion")), th(pdf_t(lang, "tw_col_strategies")), th(pdf_t(lang, "tw_col_note"))]]
         for log in logs[-25:]:
             try:
-                ts = datetime.fromisoformat(log["timestamp"].replace("Z", "+00:00"))
+                ts = _fromiso(log["timestamp"])
                 date_str = _tw_dt(ts, False)
             except Exception as e:
                 logger.debug(f"[pdf-checkin-history-date] malformed timestamp: {e}")
@@ -13446,8 +13428,8 @@ def _current_trial_end(user: dict):
         return None
     exp = user.get("subscription_expires_at")
     if exp:
-        return datetime.fromisoformat(exp.replace("Z", "+00:00"))
-    return datetime.fromisoformat(user["trial_started_at"].replace("Z", "+00:00")) + timedelta(days=TRIAL_DURATION_DAYS)
+        return _fromiso(exp)
+    return _fromiso(user["trial_started_at"]) + timedelta(days=TRIAL_DURATION_DAYS)
 
 @api_router.post("/subscription/start-trial")
 async def start_trial(request: Request):
@@ -14154,7 +14136,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
                 zone_counts[zone] += 1
                 by_classroom[cls_name][zone] += 1
                 try:
-                    ts = datetime.fromisoformat(log["timestamp"].replace("Z","+00:00"))
+                    ts = _fromiso(log["timestamp"])
                     bkey = _pdf_month_year(ts.month, ts.year, lang)
                     if bkey in bucket_zone_counts:
                         bucket_zone_counts[bkey][zone] += 1
@@ -14313,7 +14295,7 @@ async def generate_classroom_overview_pdf(user_id: str, year: int, month: int, r
             when = ""
             if v.get("timestamp"):
                 try:
-                    when = _pdf_fmt_date(datetime.fromisoformat(v["timestamp"].replace("Z","+00:00")), lang, with_year=False, with_time=True)
+                    when = _pdf_fmt_date(_fromiso(v["timestamp"]), lang, with_year=False, with_time=True)
                 except Exception as e:
                     logger.debug(f"[pdf-needs-attention-date] malformed timestamp: {e}")
             na_rows.append([Paragraph(pdf_safe(v.get("student_name") or pdf_t(lang, "cls_student_fallback"), lang, 'Helvetica-Bold'), ST_VALUE), Paragraph(pdf_safe(v.get("classroom_name",""), lang, 'Helvetica-Bold'), ST_VALUE), Paragraph(when, ST_SMALL)])
@@ -14711,7 +14693,7 @@ async def validate_submission_code(code: str, request: Request):
     c = code_row.data[0]
     if c["used_count"] >= c["max_uses"]:
         return {"valid": False, "reason": "Code has been used too many times"}
-    if datetime.fromisoformat(c["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if _fromiso(c["expires_at"]) < datetime.now(timezone.utc):
         return {"valid": False, "reason": "Code has expired"}
     return {"valid": True}
 
@@ -14858,7 +14840,7 @@ async def submit_creature(request: Request):
     c = code_row.data[0]
     if c["used_count"] >= c["max_uses"]:
         raise HTTPException(status_code=400, detail="Code has been used too many times")
-    if datetime.fromisoformat(c["expires_at"].replace("Z","+00:00")) < datetime.now(timezone.utc):
+    if _fromiso(c["expires_at"]) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Code has expired")
     # Check student hasn't already submitted this colour
     existing = supabase.table("creature_submissions").select("id")        .eq("student_id", user["user_id"])        .eq("emotion_colour", emotion)        .in_("status", ["pending","approved"])        .execute()
@@ -16161,7 +16143,7 @@ async def get_admin_stats(request: Request, days: int = 7):
             try:
                 ts = log.get("timestamp") or log.get("created_at") or ""
                 if not ts: continue
-                log_date = datetime.fromisoformat(ts.replace("Z", "+00:00")).date()
+                log_date = _fromiso(ts).date()
                 days_ago = (today - log_date).days
                 if 0 <= days_ago < 7:
                     checkin_daily[6 - days_ago] += 1
@@ -16193,7 +16175,7 @@ async def get_admin_stats(request: Request, days: int = 7):
                 try:
                     ts2 = tc.get("created_at","")
                     if ts2:
-                        tdate = datetime.fromisoformat(ts2.replace("Z","+00:00")).date()
+                        tdate = _fromiso(ts2).date()
                         d_ago = (today - tdate).days
                         if 0 <= d_ago < 7:
                             teacher_daily[6 - d_ago] += 1
@@ -16213,7 +16195,7 @@ async def get_admin_stats(request: Request, days: int = 7):
                 try:
                     ts2 = tl.get("timestamp","")
                     if ts2:
-                        tdate = datetime.fromisoformat(ts2.replace("Z","+00:00")).date()
+                        tdate = _fromiso(ts2).date()
                         d_ago = (today - tdate).days
                         if 0 <= d_ago < 7:
                             teacher_daily[6 - d_ago] += 1
@@ -16250,7 +16232,7 @@ async def get_admin_stats(request: Request, days: int = 7):
             student_dates = defaultdict(set)
             for l in all_logs_data:
                 try:
-                    d = datetime.fromisoformat(l["timestamp"].replace("Z","+00:00")).date()
+                    d = _fromiso(l["timestamp"]).date()
                     student_dates[l["student_id"]].add(d)
                 except Exception as e:
                     logger.debug(f"[stats-streak] malformed timestamp skipped: {e}")
@@ -16387,7 +16369,7 @@ async def get_admin_stats(request: Request, days: int = 7):
                     exp = u.get("subscription_expires_at")
                     if exp:
                         try:
-                            if datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now:
+                            if _fromiso(exp) <= now:
                                 continue  # expired, not a real paying subscriber
                         except (ValueError, TypeError) as e:
                             logger.debug(f"[stats-paying-subscribers] malformed subscription_expires_at: {e}")
@@ -16871,7 +16853,7 @@ async def redeem_trial_code(request: Request):
     if not db_row.get("is_active", True):
         raise HTTPException(status_code=400, detail="This trial code is no longer active")
     expires_at = db_row.get("expires_at")
-    if expires_at and datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if expires_at and _fromiso(str(expires_at)) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="This trial code has expired")
     max_uses = db_row.get("max_uses")
     if max_uses is not None and (db_row.get("uses") or 0) >= max_uses:
@@ -17173,7 +17155,7 @@ async def verify_login_code(request: Request):
     expires = user.get("email_code_expires")
     if not stored_code or code != stored_code:
         raise HTTPException(status_code=401, detail="Incorrect code")
-    if not expires or datetime.fromisoformat(expires.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if not expires or _fromiso(expires) < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="This code has expired. Please sign in again to get a new one.")
     supabase.table("users").update({"email_code": None, "email_code_expires": None}).eq("user_id", user["user_id"]).execute()
     session_token = str(uuid.uuid4())
@@ -17229,7 +17211,7 @@ async def verify_login_pin(request: Request):
     locked_until = user.get("pin_locked_until")
     if locked_until:
         try:
-            if datetime.fromisoformat(locked_until.replace("Z", "+00:00")) > datetime.now(timezone.utc):
+            if _fromiso(locked_until) > datetime.now(timezone.utc):
                 raise HTTPException(status_code=429, detail="Too many failed attempts. Please try again in a few minutes.")
         except HTTPException:
             raise
@@ -18902,7 +18884,7 @@ async def preview_school_invite_code(code: str, request: Request):
     if not result.data:
         raise HTTPException(status_code=404, detail="Invalid invite code. Check the code and try again.")
     invite = result.data[0]
-    expires = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+    expires = _fromiso(invite["expires_at"])
     if datetime.now(timezone.utc) > expires:
         raise HTTPException(status_code=400, detail="This invite code has expired. Ask your school admin for a new one.")
     return {"school_name": invite["school_name"]}
@@ -18945,7 +18927,7 @@ async def join_school_with_invite(request: Request):
         invite = result.data[0]
         
         # Check expiry
-        expires = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+        expires = _fromiso(invite["expires_at"])
         if datetime.now(timezone.utc) > expires:
             raise HTTPException(status_code=400, detail="This invite code has expired. Ask your school admin for a new one.")
         
@@ -19356,8 +19338,8 @@ async def _compute_school_admin_analytics(user_id: str, school_name: str, admin_
                 resolved_count += 1
                 if a.get("resolved_at") and a.get("created_at"):
                     try:
-                        created = datetime.fromisoformat(a["created_at"].replace("Z", "+00:00"))
-                        resolved = datetime.fromisoformat(a["resolved_at"].replace("Z", "+00:00"))
+                        created = _fromiso(a["created_at"])
+                        resolved = _fromiso(a["resolved_at"])
                         resolution_seconds_total += (resolved - created).total_seconds()
                         resolution_count += 1
                     except Exception as e:
@@ -20556,7 +20538,7 @@ async def redeem_school_provisioning_code(body: RedeemSchoolCodeRequest, request
     row = result.data[0]
     if row.get("used_at"):
         raise HTTPException(status_code=400, detail="This code has already been used.")
-    expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
+    expires = _fromiso(row["expires_at"])
     if datetime.now(timezone.utc) > expires:
         raise HTTPException(status_code=400, detail="This code has expired. Ask Class of Happiness for a new one.")
 
@@ -20821,21 +20803,7 @@ def _wl_now() -> datetime:
     return datetime.now(timezone.utc)
 
 def _wl_parse(ts) -> Optional[datetime]:
-    """Parses a Postgres timestamptz string. Postgres drops trailing zeros from the fraction
-    (e.g. '...:31.75013+00:00'), and datetime.fromisoformat() before Python 3.11 only accepts 3 or
-    6 fractional digits - the fraction is padded to 6 first. (This was the cause of the early
-    'accepted a correct answer while locked' result: a lock whose timestamp had a 5-digit fraction
-    was read as 'no lock'. The lock check itself is now done in SQL; this only feeds /status.)"""
-    if not ts:
-        return None
-    try:
-        v = str(ts).replace("Z", "+00:00")
-        m = re.match(r"^(.*?\.)(\d+)(.*)$", v)
-        if m:
-            v = m.group(1) + (m.group(2) + "000000")[:6] + m.group(3)
-        return datetime.fromisoformat(v)
-    except Exception:
-        return None
+    return _fromiso_or_none(ts)
 
 # The lock endpoints do their database work in worker threads (so concurrent requests really do
 # run concurrently and the PBKDF2 check does not stall the event loop). The shared client above is
@@ -23374,7 +23342,7 @@ async def _check_school_renewal_reminders():
         if not renewal_str:
             continue
         try:
-            renewal = datetime.fromisoformat(renewal_str.replace("Z", "+00:00"))
+            renewal = _fromiso(renewal_str)
         except Exception:
             continue
         days_left = (renewal.date() - now.date()).days
@@ -23424,7 +23392,7 @@ async def _check_school_checkin_nudges():
         if not used_str:
             continue
         try:
-            used = datetime.fromisoformat(used_str.replace("Z", "+00:00"))
+            used = _fromiso(used_str)
         except Exception:
             continue
         days_since = (now.date() - used.date()).days
@@ -23687,7 +23655,7 @@ async def get_trial_status(request: Request):
     
     if sub_status == "trial" and trial_expires:
         try:
-            expires = datetime.fromisoformat(trial_expires.replace("Z", "+00:00"))
+            expires = _fromiso(trial_expires)
             now = datetime.now(timezone.utc)
             days_left = max(0, (expires - now).days)
             if days_left == 0:
@@ -26926,7 +26894,7 @@ async def verify_email(request: Request):
     expires = user.get("email_code_expires")
     if not code or not stored_code or code != stored_code:
         raise HTTPException(status_code=401, detail="Incorrect code")
-    if not expires or datetime.fromisoformat(expires.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if not expires or _fromiso(expires) < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="This code has expired. Please request a new one.")
     updated = supabase.table("users").update({
         "email_verified": True, "email_code": None, "email_code_expires": None,
@@ -26971,7 +26939,7 @@ async def resend_verification_email(request: Request):
     expires = user.get("email_code_expires")
     still_valid = False
     try:
-        still_valid = bool(code) and bool(expires) and datetime.fromisoformat(str(expires).replace("Z", "+00:00")) > datetime.now(timezone.utc)
+        still_valid = bool(code) and bool(expires) and _fromiso(str(expires)) > datetime.now(timezone.utc)
     except Exception:
         still_valid = False
     if not still_valid:
@@ -27035,13 +27003,15 @@ async def reset_password(request: Request):
     expires = user.get("reset_token_expires")
     if expires:
         try:
-            expires_dt = datetime.fromisoformat(expires.replace("Z", "+00:00"))
+            expires_dt = _fromiso(expires)
             if expires_dt < datetime.now(timezone.utc):
                 raise HTTPException(status_code=400, detail="Reset token has expired")
         except HTTPException:
             raise
         except Exception as e:
-            logger.debug(f"[reset-token-expiry] could not parse token expiry: {e}")
+            # an expiry we cannot read is treated as expired (fail closed), never as "still valid"
+            logger.warning(f"[reset-token-expiry] could not parse token expiry: {e}")
+            raise HTTPException(status_code=400, detail="Reset token has expired")
     hashed = hash_password(new_password)
     supabase.table("users").update({
         "portal_password": hashed,
@@ -27177,6 +27147,8 @@ async def _start_support_requests_rebuzz():
     that ever changes, multiple workers would each run their own loop and double-send
     re-buzzes, so this assumption needs re-checking before scaling this service out."""
     install_log_redaction()   # fix51: re-applied after uvicorn has finished configuring logging in this worker
+    import sys as _sys_v
+    logger.info(f"[startup] python={_sys_v.version.split()[0]}")
     asyncio.create_task(_support_requests_rebuzz_loop())
     asyncio.create_task(_expired_sessions_cleanup_loop())   # fix51: guarded against the 2-worker double run by a file lock
     asyncio.create_task(_school_renewal_reminder_loop())
