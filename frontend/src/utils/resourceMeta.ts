@@ -62,20 +62,22 @@ export const hasChips = (r: ResourceFacts) =>
 interface Sortable { week_number?: number | null; title?: string }
 
 // Program description (week_number < 0) plus the programme's goal sheet and award
-// certificate (week 0 / no week, matched by title). Agreements, plans and forms are not.
+// certificate and garden journal (week 0 / no week, matched by title). Agreements, plans and forms are not.
 export function isStartHere(r: Sortable): boolean {
   const w = r.week_number;
   if (w != null && w < 0) return true;
   if (w == null || w === 0) {
     const title = r.title || '';
-    return /goal sheet|my goals|award/i.test(title) && !/agreement|plan\b/i.test(title);
+    return /goal sheet|my goals|award|garden journal/i.test(title) && !/agreement|plan\b/i.test(title);
   }
   return false;
 }
 
 const startRank = (r: Sortable) => {
   if (r.week_number != null && r.week_number < 0) return 0;
-  return /award/i.test(r.title || '') ? 2 : 1; // description, goal sheet, award
+  const title = r.title || '';
+  if (/garden journal/i.test(title)) return 3;
+  return /award/i.test(title) ? 2 : 1; // description, goal sheet, award, garden journal
 };
 
 export interface ResourceSection<R> {
@@ -112,4 +114,14 @@ export function sectionTitle(s: ResourceSection<any>, t: T): string {
   if (s.kind === 'start') return t('resource_start_here') || 'Start here';
   if (s.kind === 'week') return fill(t('resource_week_n') || 'Week {n}', { n: s.week as number });
   return t('resource_more') || 'More resources';
+}
+
+// Need-category label shown above a programme's list, derived from the programme id (no column).
+const PROGRAMME_CATEGORY: Record<string, [string, string]> = {
+  you_are_what_you_eat: ['resource_cat_food_growing', 'Food and growing'],
+  coh_entrepreneur: ['resource_cat_enterprise_money', 'Enterprise and money'],
+};
+export function programmeCategoryLabel(topicId: string, t: T): string | null {
+  const c = PROGRAMME_CATEGORY[topicId];
+  return c ? t(c[0]) || c[1] : null;
 }

@@ -17519,10 +17519,11 @@ async def get_resource_previews(resource_id: str, request: Request, width: Optio
 @api_router.get("/teacher-resources/topics")
 async def get_teacher_resource_topics():
     return [
-        {"id": "emotions", "name": "Emotions"},
+        {"id": "emotions_program", "name": "Emotions"},
         {"id": "healthy_relationships", "name": "Healthy Relationships"},
         {"id": "leader_online", "name": "Leader Online"},
         {"id": "you_are_what_you_eat", "name": "You Are What You Eat"},
+        {"id": "coh_entrepreneur", "name": "COH Entrepreneur"},
         {"id": "special_needs_education", "name": "Special Needs Education"},
         {"id": "general", "name": "General"},
     ]

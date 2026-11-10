@@ -29,7 +29,7 @@ import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
 import { ResourceDetailFacts } from '../../src/components/ResourceDetailFacts';
 import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
 import { ResourceThumb, ThumbRegistryProvider, useThumbPlayback } from '../../src/components/ResourceThumb';
-import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
+import { buildSections, sectionTitle, programmeCategoryLabel } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
 import { PaidFeatureBanner } from '../../src/components/PaidFeatureBanner';
@@ -70,6 +70,7 @@ const getTopics = (t: (key: string) => string) => [
     { id: 'healthy_relationships', name: t('healthy_relationships') || 'Healthy Relationships', icon: 'people' as const },
     { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' as const },
     { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' as const },
+    { id: 'coh_entrepreneur', name: t('coh_entrepreneur') || 'COH Entrepreneur', icon: 'storefront' as const },
     { id: 'special_needs', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' as const },
     { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' as const },
   ]),
@@ -434,13 +435,15 @@ export default function ResourcesScreen() {
   // structure keep the flat list.
   const renderResourceList = () => {
     const sections = selectedTopic !== 'all' ? buildSections(filteredResources as any[]) : null;
-    if (!sections) return filteredResources.map(renderResourceCard);
-    return sections.map((s) => (
+    const catLabel = programmeCategoryLabel(selectedTopic, t);
+    const catEl = catLabel ? <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>{catLabel}</Text> : null;
+    if (!sections) return <>{catEl}{filteredResources.map(renderResourceCard)}</>;
+    return <>{catEl}{sections.map((s) => (
       <View key={s.key}>
         <Text style={styles.sectionHeader} accessibilityRole="header">{sectionTitle(s, t)}</Text>
         {s.items.map(renderResourceCard)}
       </View>
-    ));
+    ))}</>;
   };
 
   return (

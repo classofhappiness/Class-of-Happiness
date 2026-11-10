@@ -34,7 +34,7 @@ import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
 import { ResourceDetailFacts } from '../../src/components/ResourceDetailFacts';
 import { PagePreviewStrip } from '../../src/components/PagePreviewStrip';
 import { ResourceThumb, ThumbRegistryProvider, useThumbPlayback } from '../../src/components/ResourceThumb';
-import { buildSections, sectionTitle } from '../../src/utils/resourceMeta';
+import { buildSections, sectionTitle, programmeCategoryLabel } from '../../src/utils/resourceMeta';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
 import { formatRating } from '../../src/utils/numberLabel';
 import { PaidFeatureBanner } from '../../src/components/PaidFeatureBanner';
@@ -71,6 +71,7 @@ export default function TeacherResourcesScreen() {
     { id: 'healthy_relationships', name: t('healthy_relationships') || 'Healthy Relationships', icon: 'favorite' },
     { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' },
     { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' },
+    { id: 'coh_entrepreneur', name: t('coh_entrepreneur') || 'COH Entrepreneur', icon: 'storefront' },
     { id: 'special_needs_education', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' },
     { id: 'teacher_hub', name: t('teacher_hub') || 'Teacher Hub', icon: 'groups' },
     { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' },
@@ -511,13 +512,15 @@ export default function TeacherResourcesScreen() {
   // "Start here" + week headers for programme tabs; tabs with no weekly structure stay flat.
   const renderResourceList = () => {
     const sections = buildSections(resources as any[]);
-    if (!sections) return resources.map(renderResourceCard);
-    return sections.map((s) => (
+    const catLabel = programmeCategoryLabel(selectedTopic, t);
+    const catEl = catLabel ? <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>{catLabel}</Text> : null;
+    if (!sections) return <>{catEl}{resources.map(renderResourceCard)}</>;
+    return <>{catEl}{sections.map((s) => (
       <View key={s.key}>
         <Text style={styles.sectionHeader} accessibilityRole="header">{sectionTitle(s, t)}</Text>
         {s.items.map(renderResourceCard)}
       </View>
-    ));
+    ))}</>;
   };
 
   return (
