@@ -2,7 +2,8 @@
 
 Same storage as the existing previews: resource_previews(resource_id, page_order, image), image = raw base64 JPEG,
 600 px wide. PDF pages 2-4 only (page 1 is the shared template) become page_order 1-3; a PDF with fewer pages gets
-whatever exists after page 1 (a 1-page PDF gets none). Resources that already have previews are skipped, so re-runs
+whatever exists after page 1. A 1-page PDF (Goal Sheet, Award) has nothing after page 1, so its page 1 becomes the
+single preview - the same as the existing programmes' one-page Goal Sheet / Award rows (preview_pages = 1). Resources that already have previews are skipped, so re-runs
 never duplicate. Dry run by default; --apply writes. Uses backend/.env.
 """
 import base64, io, os, sys
@@ -25,11 +26,12 @@ for topic, d in DIRS.items():
             continue
         doc = fitz.open(d + r['pdf_filename'])
         rows = []
-        for i in range(1, min(4, len(doc))):  # pages 2-4
+        idx = [0] if len(doc) == 1 else range(1, min(4, len(doc)))  # pages 2-4, or page 1 of a 1-page PDF
+        for n, i in enumerate(idx, start=1):
             pix = doc[i].get_pixmap(matrix=fitz.Matrix(WIDTH / doc[i].rect.width, WIDTH / doc[i].rect.width))
             im = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
             buf = io.BytesIO(); im.save(buf, format='JPEG', quality=QUALITY, optimize=True)
-            rows.append({'resource_id': r['id'], 'page_order': i, 'image': base64.b64encode(buf.getvalue()).decode()})
+            rows.append({'resource_id': r['id'], 'page_order': n, 'image': base64.b64encode(buf.getvalue()).decode()})
         kb = [round(len(x['image']) * 3 / 4 / 1024) for x in rows]
         print(f"{topic[:4]} {r['title'][:36]:36} pdf_pages={len(doc)} previews={len(rows)} kb={kb}")
         tot += len(rows); n_res += 1; n_none += not rows
