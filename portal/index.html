@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-11b (creature stage viewer: pending, awaiting-final-approval, approved and featured creatures show all stages with arrows and a 1/4 counter; replaces the single stage-1 thumbnail and the pending "See stages" link) -->
+<!-- COH-PORTAL-VERSION: 2026-11-11c (superadmin All Users: search box (name or email), "Suspended" badge and a Suspend / Reactivate button per user - hidden for superadmin accounts and for your own account - using POST /admin/users/{id}/suspend and /reactivate) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-11b (creature stage viewer: pending, awaiting-final-approval, approved and featured creatures show all stages with arrows and a 1/4 counter; replaces the single stage-1 thumbnail and the pending "See stages" link) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11 (creature moderation: pending and awaiting-final-approval rows show an AI-check badge - red "AI flagged - check images", amber "AI check failed - review manually", amber "Busy background kept - check it"; nothing for clean/empty) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-10 (resources: COH Entrepreneur programme, Start here order, food/enterprise labels) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-03 (Superadmin Settings tab: "Enquiry email" - the address School Package enquiries are sent to, with Save and "Send test enquiry"; builds on 2026-11-01b) -->
@@ -1044,6 +1045,7 @@ function buildSuperAdminPortal(){
           '<h2 style="margin-bottom:0">\u{1F465} All Users</h2>'+
         '</div>'+
         '<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.75rem">'+
+          '<input type="search" id="saUserSearch" oninput="filterSAUsers()" placeholder="Search name or email" autocomplete="off" style="font-size:.72rem;padding:.3rem .6rem;border-radius:8px;border:1.5px solid rgba(0,0,0,.1);min-width:11rem"/>'+
           '<select id="saUserFilter" onchange="filterSAUsers()" style="font-size:.72rem;padding:.3rem .5rem;border-radius:8px;border:1.5px solid rgba(0,0,0,.1)">'+
             '<option value="">All roles</option>'+
             '<option value="teacher">Teachers</option>'+
@@ -2079,17 +2081,19 @@ function filterSAUsers(){
   var filter = document.getElementById('saUserFilter')?.value||'';
   var schoolFilter = document.getElementById('saUserSchoolFilter')?.value||'';
   var countryFilter = document.getElementById('saUserCountryFilter')?.value||'';
+  var q = (document.getElementById('saUserSearch')?.value||'').trim().toLowerCase();
   var filtered = allSAUsers.filter(function(u){
     if(filter && u.role!==filter) return false;
     if(schoolFilter && u.school_name!==schoolFilter) return false;
     if(countryFilter && u.school_country!==countryFilter) return false;
+    if(q && (String(u.name||'')+' '+String(u.email||'')).toLowerCase().indexOf(q)===-1) return false;
     return true;
   });
   var el = document.getElementById('saUserList');
   if(!el) return;
   var roleColors={teacher:'#4CAF73',parent:'#4A90D9',school_admin:'#FFD93D',student:'#9C27B0',superadmin:'#E05252'};
   el.innerHTML = filtered.length ?
-    '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem">'+filtered.length+' users</div>'+
+    '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem">'+filtered.length+' users'+(filtered.length>50?' (showing the first 50 - use the search box to find a specific person)':'')+'</div>'+
     filtered.slice(0,50).map(function(u){
       return '<div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid #F0F0F0">'+
         '<div style="width:32px;height:32px;border-radius:50%;background:'+(roleColors[u.role]||'#E0E0E0')+'22;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:'+(roleColors[u.role]||'#666')+';flex-shrink:0">'+
@@ -2100,10 +2104,62 @@ function filterSAUsers(){
           '<div style="font-size:.68rem;color:var(--soft)">'+(u.school_name?u.school_name+' \u00b7 ':'')+u.email+'</div>'+
         '</div>'+
         '<span style="font-size:.65rem;font-weight:800;padding:.18rem .5rem;border-radius:12px;background:'+(roleColors[u.role]||'#E0E0E0')+'22;color:'+(roleColors[u.role]||'#666')+'">'+u.role+'</span>'+
+        (u.account_suspended?'<span style="font-size:.65rem;font-weight:800;padding:.18rem .5rem;border-radius:12px;background:#FFEBEE;color:#C62828">\u26D4 Suspended</span>':'')+
+        saUserActionButton(u)+
       '</div>';
     }).join('') :
     '<p style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">No users found</p>';
 }
+window.filterSAUsers=filterSAUsers;
+
+// Suspend / reactivate (superadmin, endpoints POST /admin/users/{id}/suspend and /reactivate). No button for a superadmin
+// row or for your own account (the backend refuses both anyway). Buttons pass only the user id; the name is looked up here so
+// nothing user-supplied is ever put inside an inline handler.
+function saIsMine(u){
+  return !!currentUser && ((currentUser.user_id && currentUser.user_id===u.user_id) || (currentUser.email && u.email && String(currentUser.email).toLowerCase()===String(u.email).toLowerCase()));
+}
+function saUserActionButton(u){
+  if(!u || u.role==='superadmin' || saIsMine(u)) return '';
+  var id=esc(u.user_id);
+  return u.account_suspended
+    ? '<button type="button" onclick="saReactivateUser(\''+id+'\')" style="font-size:.65rem;font-weight:800;padding:.2rem .55rem;border-radius:12px;border:none;background:#E8F5E9;color:#2E7D32;cursor:pointer">Reactivate</button>'
+    : '<button type="button" onclick="saSuspendUser(\''+id+'\')" style="font-size:.65rem;font-weight:800;padding:.2rem .55rem;border-radius:12px;border:none;background:#F5F5F5;color:#999;cursor:pointer">Suspend</button>';
+}
+var saSuspendBusy={};
+function saUserLabel(userId, name){
+  var u=allSAUsers.filter(function(x){return x.user_id===userId;})[0]||{};
+  return name||u.name||u.email||userId;
+}
+async function saSuspendUser(userId, name){
+  if(!userId || saSuspendBusy[userId]) return;
+  var label=saUserLabel(userId, name);
+  if(!confirm('Suspend '+label+'?\n\nThis immediately blocks login and kills any active session. It can be reversed at any time.')) return;
+  var reason=prompt('Reason (optional). Press OK to suspend, Cancel to stop.','');
+  if(reason===null) return;
+  saSuspendBusy[userId]=true;
+  try{
+    await api('/admin/users/'+encodeURIComponent(userId)+'/suspend','POST',{reason:String(reason).trim()});
+    allSAUsers.forEach(function(x){if(x.user_id===userId)x.account_suspended=true;});
+    filterSAUsers();
+    showToast('\u26D4 '+label+' suspended');
+  }catch(e){ showToast('\u274C Could not suspend: '+(e&&e.message?e.message:'error')); }
+  saSuspendBusy[userId]=false;
+}
+async function saReactivateUser(userId, name){
+  if(!userId || saSuspendBusy[userId]) return;
+  var label=saUserLabel(userId, name);
+  if(!confirm('Reactivate '+label+'?\n\nThey will be able to log in again.')) return;
+  saSuspendBusy[userId]=true;
+  try{
+    await api('/admin/users/'+encodeURIComponent(userId)+'/reactivate','POST',{});
+    allSAUsers.forEach(function(x){if(x.user_id===userId)x.account_suspended=false;});
+    filterSAUsers();
+    showToast('\u2705 '+label+' reactivated');
+  }catch(e){ showToast('\u274C Could not reactivate: '+(e&&e.message?e.message:'error')); }
+  saSuspendBusy[userId]=false;
+}
+window.saSuspendUser=saSuspendUser;
+window.saReactivateUser=saReactivateUser;
 
 
 // ── SCHOOL ADMIN PORTAL ──
