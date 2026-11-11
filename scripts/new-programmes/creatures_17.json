@@ -1,0 +1,279 @@
+{
+  "_note": "17 children's drawn creatures, global, attributed to Class of Happiness only. Colours are Jono's table (blue 2, green 9, yellow 4, red 2). 'translations' (ar de es fr hi it pt ru zh) is filled in at step 4, after review.",
+  "creatures": [
+    {
+      "name": "Lucky Ducky",
+      "colour": "blue",
+      "en": "Lucky Ducky grows a little taller every time you check in. A steady friend for the days when you feel tired, sad or on your own."
+    },
+    {
+      "name": "Dinosaur",
+      "colour": "green",
+      "en": "Dinosaur hatches from a leaf-green egg and grows long and strong. A calm, brave friend for when you want to feel happy and ready."
+    },
+    {
+      "name": "Duck",
+      "colour": "green",
+      "en": "Duck starts as a tiny egg and grows into a bird with a crest. It stays with you while you feel calm and focused."
+    },
+    {
+      "name": "Pingoin",
+      "colour": "green",
+      "en": "Pingoin is a little striped egg that grows into a penguin with a flower on its head. A gentle friend for happy days."
+    },
+    {
+      "name": "Rubi",
+      "colour": "red",
+      "en": "Rubi is a watermelon that grows into a fiery dragon. It shows that big, strong feelings can turn into something brave."
+    },
+    {
+      "name": "Lion",
+      "colour": "red",
+      "en": "Lion is a little sun that turns from orange to red as it grows into a lion. A warm friend for angry or wild days."
+    },
+    {
+      "name": "Gigi",
+      "colour": "yellow",
+      "en": "Gigi is an egg that grows into a tall, spotty giraffe. A silly, curious friend for nervous or worried moments."
+    },
+    {
+      "name": "Bluebell",
+      "colour": "blue",
+      "en": "Bluebell starts out sad and crying, and the ribbon in her hair turns from blue to green as she smiles. Feelings change, and she shows how."
+    },
+    {
+      "name": "Capy",
+      "colour": "green",
+      "en": "Capy is a soft, gentle capybara that grows from small to big as you check in."
+    },
+    {
+      "name": "Zuzu",
+      "colour": "yellow",
+      "en": "Zuzu hatches from a spotted egg into a long-necked giraffe. A bright friend for silly or worried days."
+    },
+    {
+      "name": "Melinda",
+      "colour": "green",
+      "en": "Melinda is a rainbow that starts as a tiny arch and grows bigger and brighter with each colour."
+    },
+    {
+      "name": "Pam Pam",
+      "colour": "yellow",
+      "en": "Pam Pam is a little orange fruit with a stalk, growing bigger and sweeter each time. A cheerful friend for nervous days."
+    },
+    {
+      "name": "Leez",
+      "colour": "green",
+      "en": "Leez hatches from an egg into a caterpillar and then into a butterfly. Growing and changing takes time."
+    },
+    {
+      "name": "Caramela",
+      "colour": "yellow",
+      "en": "Caramela is a stack of caramel-coloured bars that grows bigger each stage."
+    },
+    {
+      "name": "Loronga",
+      "colour": "green",
+      "en": "Loronga is a small orange egg with dark spots that grows into a big one."
+    },
+    {
+      "name": "Legos",
+      "colour": "green",
+      "en": "Legos is a green caterpillar that gets longer and stronger with every stage."
+    },
+    {
+      "name": "Flayda",
+      "colour": "green",
+      "en": "Flayda is a little flower that grows from a tiny bud into a big, colourful bloom."
+    }
+  ],
+  "translations": {
+    "Lucky Ducky": {
+      "ar": "يكبر Lucky Ducky قليلًا في كل مرة تسجّل فيها مشاعرك. صديق ثابت في الأيام التي تشعر فيها بالتعب أو الحزن أو الوحدة.",
+      "de": "Lucky Ducky wird bei jedem Check-in ein Stückchen größer. Ein verlässlicher Freund für Tage, an denen du dich müde, traurig oder allein fühlst.",
+      "es": "Lucky Ducky crece un poquito cada vez que haces un check-in. Un amigo constante para los días en que sientes cansancio, tristeza o soledad.",
+      "fr": "Lucky Ducky grandit un peu à chaque check-in. Un ami fidèle pour les jours où tu ressens de la fatigue, de la tristesse ou de la solitude.",
+      "hi": "हर बार जब आप चेक-इन करते हैं, Lucky Ducky थोड़ा और बड़ा हो जाता है। उन दिनों के लिए एक भरोसेमंद दोस्त, जब आपको थकान, उदासी या अकेलापन महसूस हो।",
+      "it": "Lucky Ducky cresce un pochino ogni volta che fai il check-in. Un amico sempre al tuo fianco nei giorni in cui senti stanchezza, tristezza o solitudine.",
+      "pt": "Lucky Ducky cresce um bocadinho sempre que fazes check-in. Um amigo constante para os dias em que sentes cansaço, tristeza ou solidão.",
+      "ru": "Lucky Ducky становится чуточку выше каждый раз, когда ты отмечаешься. Верный друг для дней, когда тебе грустно, одиноко или нет сил.",
+      "zh": "每次你打卡，Lucky Ducky 都会长高一点点。当你感到疲惫、难过或孤单时，它是一位可靠的朋友。"
+    },
+    "Dinosaur": {
+      "ar": "يفقس Dinosaur من بيضة خضراء بلون أوراق الشجر، ويكبر طويلًا وقويًا. صديق هادئ وشجاع للأوقات التي تريد فيها أن تشعر بالسعادة والاستعداد.",
+      "de": "Dinosaur schlüpft aus einem blattgrünen Ei und wird lang und stark. Ein ruhiger, mutiger Freund für Momente, in denen du dich glücklich und bereit fühlen möchtest.",
+      "es": "Dinosaur sale de un huevo verde como una hoja y crece largo y fuerte. Un amigo tranquilo y valiente para cuando quieres sentir alegría y tener ganas de empezar.",
+      "fr": "Dinosaur sort d'un œuf vert feuille et devient long et fort. Un ami calme et courageux pour les moments où tu as envie de joie et d'énergie.",
+      "hi": "Dinosaur पत्ते जैसे हरे अंडे से निकलता है और लंबा और मज़बूत होता जाता है। एक शांत, बहादुर दोस्त, उन पलों के लिए जब आप खुश और तैयार महसूस करना चाहते हैं।",
+      "it": "Dinosaur esce da un uovo verde come una foglia e diventa lungo e forte. Un amico calmo e coraggioso per quando hai voglia di gioia ed energia.",
+      "pt": "Dinosaur sai de um ovo verde como uma folha e cresce comprido e forte. Um amigo calmo e corajoso para quando queres sentir alegria e energia.",
+      "ru": "Dinosaur вылупляется из зелёного, как листок, яйца и вырастает длинным и сильным. Спокойный, смелый друг для минут, когда хочется радости и бодрости.",
+      "zh": "Dinosaur 从一颗叶子般绿色的蛋里孵化出来，长得又长又强壮。当你想感到开心、准备好迎接新的一天时，它是一位平静又勇敢的朋友。"
+    },
+    "Duck": {
+      "ar": "يبدأ Duck بيضةً صغيرة، ثم يكبر ليصبح طائرًا بعُرفٍ على رأسه. يبقى معك ما دمتَ تشعر بالهدوء والتركيز.",
+      "de": "Duck beginnt als winziges Ei und wird zu einem Vogel mit Federschopf. Duck bleibt bei dir, solange du dich ruhig und konzentriert fühlst.",
+      "es": "Duck empieza como un huevito diminuto y se convierte en un ave con cresta. Se queda contigo mientras sientes calma y concentración.",
+      "fr": "Duck commence comme un minuscule œuf et devient un oiseau avec une crête. Il reste avec toi tant que tu ressens du calme et de la concentration.",
+      "hi": "Duck एक नन्हे अंडे से शुरू होता है और कलगी वाला पक्षी बन जाता है। जब तक आप शांत और एकाग्र महसूस करते हैं, यह आपके साथ रहता है।",
+      "it": "Duck comincia come un minuscolo uovo e diventa un uccello con il ciuffo. Resta con te finché senti calma e concentrazione.",
+      "pt": "Duck começa como um ovinho minúsculo e transforma-se numa ave com crista. Fica contigo enquanto sentes calma e concentração.",
+      "ru": "Duck начинает как крошечное яйцо и превращается в птицу с хохолком. Duck остаётся с тобой, пока тебе спокойно и легко сосредоточиться.",
+      "zh": "Duck 从一颗小小的蛋开始，长成一只头上有羽冠的鸟。当你平静、专注的时候，它会一直陪着你。"
+    },
+    "Pingoin": {
+      "ar": "Pingoin بيضة صغيرة مخطّطة تكبر لتصبح بطريقًا يضع زهرة على رأسه. صديق لطيف للأيام السعيدة.",
+      "de": "Pingoin ist ein kleines gestreiftes Ei, das zu einem Pinguin mit einer Blume auf dem Kopf heranwächst. Ein sanfter Freund für fröhliche Tage.",
+      "es": "Pingoin es un huevito a rayas que crece hasta ser un pingüino con una flor en la cabeza. Un amigo dulce para los días felices.",
+      "fr": "Pingoin est un petit œuf rayé qui devient un manchot avec une fleur sur la tête. Un ami doux pour les jours heureux.",
+      "hi": "Pingoin एक छोटा धारीदार अंडा है जो बड़ा होकर सिर पर फूल वाला पेंगुइन बन जाता है। खुशी के दिनों के लिए एक कोमल दोस्त।",
+      "it": "Pingoin è un piccolo uovo a righe che diventa un pinguino con un fiore sulla testa. Un amico gentile per i giorni felici.",
+      "pt": "Pingoin é um ovinho às riscas que se transforma num pinguim com uma flor na cabeça. Um amigo gentil para os dias felizes.",
+      "ru": "Pingoin — маленькое полосатое яйцо, из которого вырастает пингвин с цветком на голове. Нежный друг для радостных дней.",
+      "zh": "Pingoin 是一颗带条纹的小蛋，长大后变成头上戴着小花的企鹅。它是陪你度过快乐日子的温柔朋友。"
+    },
+    "Rubi": {
+      "ar": "Rubi بطيخة تكبر لتصبح تنّينًا ناريًا. تُظهر أن المشاعر الكبيرة والقوية يمكن أن تتحوّل إلى شيء شجاع.",
+      "de": "Rubi ist eine Wassermelone, die zu einem feurigen Drachen heranwächst. Sie zeigt, dass große, starke Gefühle zu etwas Mutigem werden können.",
+      "es": "Rubi es una sandía que se convierte en un dragón de fuego. Nos muestra que los sentimientos grandes y fuertes pueden transformarse en algo valiente.",
+      "fr": "Rubi est une pastèque qui devient un dragon de feu. Elle montre que les grandes émotions fortes peuvent se transformer en quelque chose de courageux.",
+      "hi": "Rubi एक तरबूज़ है जो बड़ा होकर आग उगलने वाला ड्रैगन बन जाता है। यह दिखाता है कि बड़ी और तेज़ भावनाएँ भी किसी बहादुरी भरी चीज़ में बदल सकती हैं।",
+      "it": "Rubi è un'anguria che diventa un drago di fuoco. Mostra che le emozioni grandi e forti possono trasformarsi in qualcosa di coraggioso.",
+      "pt": "Rubi é uma melancia que se transforma num dragão de fogo. Mostra que as emoções grandes e fortes podem tornar-se algo corajoso.",
+      "ru": "Rubi — арбуз, который превращается в огненного дракона. Он показывает, что большие, сильные чувства могут стать чем-то смелым.",
+      "zh": "Rubi 是一个西瓜，长大后变成一条喷火的龙。它告诉我们：强烈的大情绪也能变成勇敢的力量。"
+    },
+    "Lion": {
+      "ar": "Lion شمس صغيرة يتحوّل لونها من البرتقالي إلى الأحمر وهي تكبر لتصبح أسدًا. صديق دافئ للأيام التي تشعر فيها بالغضب أو الجموح.",
+      "de": "Lion ist eine kleine Sonne, die beim Wachsen von Orange zu Rot wechselt und zu einem Löwen heranwächst. Ein warmer Freund für wütende oder wilde Tage.",
+      "es": "Lion es un pequeño sol que pasa de naranja a rojo mientras crece hasta ser un león. Un amigo cálido para los días de enfado o de mucha energía.",
+      "fr": "Lion est un petit soleil qui passe de l'orange au rouge en devenant un lion. Un ami chaleureux pour les jours de colère ou d'agitation.",
+      "hi": "Lion एक छोटा सूरज है जो बड़ा होते-होते नारंगी से लाल हो जाता है और शेर बन जाता है। गुस्से या बेचैनी भरे दिनों के लिए एक गर्मजोशी भरा दोस्त।",
+      "it": "Lion è un piccolo sole che passa dall'arancione al rosso mentre diventa un leone. Un amico caloroso per i giorni di rabbia o di grande agitazione.",
+      "pt": "Lion é um pequeno sol que passa de laranja a vermelho enquanto se transforma num leão. Um amigo caloroso para os dias de raiva ou agitação.",
+      "ru": "Lion — маленькое солнце, которое по мере роста из оранжевого становится красным и превращается во льва. Тёплый друг для дней, когда злишься или не находишь себе места.",
+      "zh": "Lion 是一颗小太阳，长大时颜色从橙色变成红色，最后变成一头狮子。在你生气或躁动的日子里，它是温暖的朋友。"
+    },
+    "Gigi": {
+      "ar": "Gigi بيضة تكبر لتصبح زرافة طويلة منقّطة. صديق مرح وفضولي للحظات التوتر أو القلق.",
+      "de": "Gigi ist ein Ei, das zu einer hohen, gefleckten Giraffe heranwächst. Ein alberner, neugieriger Freund für nervöse oder besorgte Momente.",
+      "es": "Gigi es un huevo que se convierte en una jirafa alta y con manchas. Un amigo divertido y curioso para los momentos de nervios o preocupación.",
+      "fr": "Gigi est un œuf qui devient une grande girafe tachetée. Un ami rigolo et curieux pour les moments de nervosité ou d'inquiétude.",
+      "hi": "Gigi एक अंडा है जो बड़ा होकर लंबी, धब्बेदार जिराफ़ बन जाता है। घबराहट या चिंता के पलों के लिए एक मज़ेदार और जिज्ञासु दोस्त।",
+      "it": "Gigi è un uovo che diventa una giraffa alta e macchiata. Un amico buffo e curioso per i momenti di agitazione o preoccupazione.",
+      "pt": "Gigi é um ovo que se transforma numa girafa alta e às manchas. Um amigo divertido e curioso para os momentos de nervosismo ou preocupação.",
+      "ru": "Gigi — яйцо, из которого вырастает высокий пятнистый жираф. Весёлый, любопытный друг для минут волнения и тревоги.",
+      "zh": "Gigi 是一颗蛋，长大后变成一只高高的、身上有斑点的长颈鹿。在你紧张或担心的时刻，它是有趣又好奇的朋友。"
+    },
+    "Bluebell": {
+      "ar": "تبدأ Bluebell حزينة وتبكي، ثم يتحوّل الشريط في شعرها من الأزرق إلى الأخضر وهي تبتسم. المشاعر تتغيّر، وهي تُرينا كيف.",
+      "de": "Bluebell fängt traurig und weinend an, und die Schleife in ihrem Haar wird von Blau zu Grün, während sie lächelt. Gefühle verändern sich, und sie zeigt, wie das geht.",
+      "es": "Bluebell empieza triste y llorando, y el lazo de su pelo cambia de azul a verde mientras sonríe. Los sentimientos cambian, y ella nos enseña cómo.",
+      "fr": "Bluebell commence triste et en pleurs, puis le ruban de ses cheveux passe du bleu au vert quand elle sourit. Les émotions changent, et elle nous montre comment.",
+      "hi": "Bluebell शुरू में उदास होती है और रोती है, फिर मुस्कुराते-मुस्कुराते उसके बालों का रिबन नीले से हरा हो जाता है। भावनाएँ बदलती हैं, और वह दिखाती है कि कैसे।",
+      "it": "Bluebell comincia triste e in lacrime, poi il nastro tra i suoi capelli passa dal blu al verde mentre sorride. Le emozioni cambiano, e lei ci mostra come.",
+      "pt": "Bluebell começa triste e a chorar, e a fita do cabelo passa de azul a verde enquanto ela sorri. As emoções mudam, e ela mostra como.",
+      "ru": "Bluebell сначала грустит и плачет, а потом лента в её волосах из синей становится зелёной, когда она улыбается. Чувства меняются, и она показывает, как это бывает.",
+      "zh": "Bluebell 一开始伤心地哭着，随着她露出笑容，头发上的丝带从蓝色变成了绿色。感受会改变，她正是这样告诉我们的。"
+    },
+    "Capy": {
+      "ar": "Capy كابيبارا لطيفة ورقيقة تكبر من صغيرة إلى كبيرة كلما سجّلتَ مشاعرك.",
+      "de": "Capy ist ein weiches, sanftes Capybara, das mit jedem Check-in von klein zu groß wächst.",
+      "es": "Capy es una capibara suave y tranquila que crece de pequeña a grande con cada check-in.",
+      "fr": "Capy est un capybara doux et paisible qui passe de petit à grand à chaque check-in.",
+      "hi": "Capy एक कोमल, प्यारा कैपिबारा है जो हर चेक-इन के साथ छोटे से बड़ा होता जाता है।",
+      "it": "Capy è un capibara morbido e gentile che cresce da piccolo a grande a ogni check-in.",
+      "pt": "Capy é uma capivara fofa e gentil que cresce de pequena a grande a cada check-in.",
+      "ru": "Capy — мягкая, добрая капибара, которая растёт из маленькой в большую каждый раз, когда ты отмечаешься.",
+      "zh": "Capy 是一只柔软又温和的水豚，每次你打卡，它就从小小的一只长大一点。"
+    },
+    "Zuzu": {
+      "ar": "يفقس Zuzu من بيضة منقّطة ليصبح زرافة ذات رقبة طويلة. صديق مشرق للأيام المرحة أو القلقة.",
+      "de": "Zuzu schlüpft aus einem gefleckten Ei und wird zu einer Giraffe mit langem Hals. Ein fröhlicher Freund für alberne oder sorgenvolle Tage.",
+      "es": "Zuzu sale de un huevo con manchas y se convierte en una jirafa de cuello largo. Un amigo alegre para los días divertidos o preocupados.",
+      "fr": "Zuzu sort d'un œuf tacheté et devient une girafe au long cou. Un ami lumineux pour les jours rigolos ou inquiets.",
+      "hi": "Zuzu धब्बों वाले अंडे से निकलकर लंबी गर्दन वाला जिराफ़ बन जाता है। मस्ती भरे या चिंता भरे दिनों के लिए एक चमकदार दोस्त।",
+      "it": "Zuzu esce da un uovo macchiato e diventa una giraffa dal collo lungo. Un amico luminoso per i giorni buffi o preoccupati.",
+      "pt": "Zuzu sai de um ovo às manchas e transforma-se numa girafa de pescoço comprido. Um amigo luminoso para os dias divertidos ou preocupados.",
+      "ru": "Zuzu вылупляется из пятнистого яйца и становится жирафом с длинной шеей. Яркий друг для весёлых или тревожных дней.",
+      "zh": "Zuzu 从一颗有斑点的蛋里孵化出来，变成一只长脖子的长颈鹿。在你调皮或担心的日子里，它是明亮的好朋友。"
+    },
+    "Melinda": {
+      "ar": "Melinda قوس قزح يبدأ قوسًا صغيرًا ثم يكبر ويزداد إشراقًا مع كل لون.",
+      "de": "Melinda ist ein Regenbogen, der als winziger Bogen beginnt und mit jeder Farbe größer und leuchtender wird.",
+      "es": "Melinda es un arcoíris que empieza como un arco diminuto y se hace más grande y brillante con cada color.",
+      "fr": "Melinda est un arc-en-ciel qui commence comme une toute petite arche et devient plus grand et plus lumineux à chaque couleur.",
+      "hi": "Melinda एक इंद्रधनुष है जो एक नन्हे चाप से शुरू होता है और हर रंग के साथ बड़ा और चमकीला होता जाता है।",
+      "it": "Melinda è un arcobaleno che comincia come un minuscolo arco e diventa più grande e luminoso a ogni colore.",
+      "pt": "Melinda é um arco-íris que começa como um arquinho minúsculo e fica maior e mais brilhante a cada cor.",
+      "ru": "Melinda — радуга, которая начинается с крошечной дуги и с каждым цветом становится больше и ярче.",
+      "zh": "Melinda 是一道彩虹，从一道小小的弧线开始，每多一种颜色就变得更大、更明亮。"
+    },
+    "Pam Pam": {
+      "ar": "Pam Pam ثمرة برتقالية صغيرة لها عنق، تكبر وتصير أحلى في كل مرة. صديق مرح للأيام التي تشعر فيها بالتوتر.",
+      "de": "Pam Pam ist eine kleine orange Frucht mit Stiel, die jedes Mal größer und süßer wird. Ein fröhlicher Freund für nervöse Tage.",
+      "es": "Pam Pam es una frutita naranja con rabito que crece y se vuelve más dulce cada vez. Un amigo alegre para los días de nervios.",
+      "fr": "Pam Pam est un petit fruit orange avec une queue, qui grossit et devient plus sucré à chaque fois. Un ami joyeux pour les jours de nervosité.",
+      "hi": "Pam Pam डंठल वाला एक छोटा नारंगी फल है, जो हर बार बड़ा और मीठा होता जाता है। घबराहट वाले दिनों के लिए एक खुशमिज़ाज दोस्त।",
+      "it": "Pam Pam è un piccolo frutto arancione con il picciolo, che diventa più grande e più dolce ogni volta. Un amico allegro per i giorni di agitazione.",
+      "pt": "Pam Pam é uma fruta laranja pequenina com um cabinho, que fica maior e mais doce de cada vez. Um amigo alegre para os dias de nervosismo.",
+      "ru": "Pam Pam — маленький оранжевый плод с черешком, который с каждым разом становится больше и слаще. Весёлый друг для дней, когда волнуешься.",
+      "zh": "Pam Pam 是一个带小梗的橙色小水果，每一次都会变得更大、更甜。在你紧张的日子里，它是快乐的朋友。"
+    },
+    "Leez": {
+      "ar": "يفقس Leez من بيضة ليصبح يرقة ثم فراشة. النمو والتغيّر يحتاجان إلى وقت.",
+      "de": "Leez schlüpft aus einem Ei als Raupe und wird dann zu einem Schmetterling. Wachsen und sich verändern braucht Zeit.",
+      "es": "Leez sale de un huevo como oruga y después se convierte en mariposa. Crecer y cambiar lleva tiempo.",
+      "fr": "Leez sort d'un œuf sous forme de chenille, puis devient un papillon. Grandir et changer demande du temps.",
+      "hi": "Leez अंडे से इल्ली बनकर निकलता है और फिर तितली बन जाता है। बढ़ने और बदलने में समय लगता है।",
+      "it": "Leez esce da un uovo come bruco e poi diventa una farfalla. Crescere e cambiare richiede tempo.",
+      "pt": "Leez sai de um ovo como lagarta e depois transforma-se numa borboleta. Crescer e mudar leva tempo.",
+      "ru": "Leez вылупляется из яйца гусеницей, а потом превращается в бабочку. Расти и меняться — на это нужно время.",
+      "zh": "Leez 从蛋里孵化成一条毛毛虫，后来变成一只蝴蝶。成长和改变都需要时间。"
+    },
+    "Caramela": {
+      "ar": "Caramela كومة من القطع بلون الكراميل تكبر في كل مرحلة.",
+      "de": "Caramela ist ein Stapel karamellfarbener Riegel, der mit jeder Stufe größer wird.",
+      "es": "Caramela es una pila de barritas color caramelo que se hace más grande en cada etapa.",
+      "fr": "Caramela est une pile de barres couleur caramel qui grandit à chaque étape.",
+      "hi": "Caramela कैरामेल रंग की पट्टियों का एक ढेर है, जो हर चरण में और बड़ा होता जाता है।",
+      "it": "Caramela è una pila di barrette color caramello che diventa più grande a ogni fase.",
+      "pt": "Caramela é uma pilha de barras cor de caramelo que fica maior em cada fase.",
+      "ru": "Caramela — стопка плиточек цвета карамели, которая становится больше на каждом этапе.",
+      "zh": "Caramela 是一叠焦糖色的长条，每一个阶段都会变得更大。"
+    },
+    "Loronga": {
+      "ar": "Loronga بيضة برتقالية صغيرة ذات بقع داكنة تكبر لتصبح بيضة كبيرة.",
+      "de": "Loronga ist ein kleines orangefarbenes Ei mit dunklen Flecken, das zu einem großen heranwächst.",
+      "es": "Loronga es un huevito naranja con manchas oscuras que crece hasta ser uno grande.",
+      "fr": "Loronga est un petit œuf orange avec des taches foncées qui devient un gros œuf.",
+      "hi": "Loronga गहरे धब्बों वाला एक छोटा नारंगी अंडा है जो बड़ा होकर एक बड़ा अंडा बन जाता है।",
+      "it": "Loronga è un piccolo uovo arancione con macchie scure che diventa un uovo grande.",
+      "pt": "Loronga é um ovinho laranja com manchas escuras que cresce até ficar grande.",
+      "ru": "Loronga — маленькое оранжевое яйцо с тёмными пятнышками, которое вырастает в большое.",
+      "zh": "Loronga 是一颗带深色斑点的橙色小蛋，慢慢长成一颗大蛋。"
+    },
+    "Legos": {
+      "ar": "Legos يرقة خضراء تصبح أطول وأقوى مع كل مرحلة.",
+      "de": "Legos ist eine grüne Raupe, die mit jeder Stufe länger und stärker wird.",
+      "es": "Legos es una oruga verde que se hace más larga y más fuerte en cada etapa.",
+      "fr": "Legos est une chenille verte qui devient plus longue et plus forte à chaque étape.",
+      "hi": "Legos एक हरी इल्ली है जो हर चरण के साथ और लंबी और मज़बूत होती जाती है।",
+      "it": "Legos è un bruco verde che diventa più lungo e più forte a ogni fase.",
+      "pt": "Legos é uma lagarta verde que fica mais comprida e mais forte em cada fase.",
+      "ru": "Legos — зелёная гусеница, которая с каждым этапом становится длиннее и сильнее.",
+      "zh": "Legos 是一条绿色的毛毛虫，每过一个阶段就变得更长、更强壮。"
+    },
+    "Flayda": {
+      "ar": "Flayda زهرة صغيرة تنمو من برعم صغير جدًا إلى زهرة كبيرة ملوّنة.",
+      "de": "Flayda ist eine kleine Blume, die aus einer winzigen Knospe zu einer großen, bunten Blüte heranwächst.",
+      "es": "Flayda es una florecita que crece desde un diminuto capullo hasta una flor grande y colorida.",
+      "fr": "Flayda est une petite fleur qui passe d'un minuscule bourgeon à une grande fleur colorée.",
+      "hi": "Flayda एक छोटा फूल है जो नन्ही कली से बढ़कर एक बड़ा, रंग-बिरंगा फूल बन जाता है।",
+      "it": "Flayda è un piccolo fiore che cresce da un minuscolo bocciolo fino a diventare un grande fiore colorato.",
+      "pt": "Flayda é uma florzinha que cresce de um botão minúsculo até ser uma flor grande e colorida.",
+      "ru": "Flayda — маленький цветок, который вырастает из крошечного бутона в большой яркий цветок.",
+      "zh": "Flayda 是一朵小花，从一个小小的花蕾长成一朵大大的彩色花朵。"
+    }
+  }
+}
