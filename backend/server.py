@@ -5014,6 +5014,11 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
         if not gate or not _passes_creature_approval_gate(gate.get("status"), gate.get("visibility_scope"), gate.get("superadmin_approved_at"), gate.get("ai_moderation_flag"), gate.get("approved_at")):
             active_id = FEELING_COLOUR_MAP.get(feeling_colour, "aqua_buddy")
 
+    # Creature stats (Phase 2): one event per real check-in (not for strategy/comment top-ups, not for a repeated submission of
+    # the same check-in), against the creature that actually received it. Best effort, never blocks.
+    if req.points_type == "checkin" and not is_duplicate_award:
+        _log_creature_event(student_id, "creature_checkin", active_id, colour=feeling_colour, student_data=student_data)
+
     if active_id not in DEFAULT_CREATURE_IDS:
         # Community creature is this colour's active pursuit - points/streak are still
         # student-level and always tracked, but stage progress goes through the real
@@ -5258,6 +5263,8 @@ async def add_points(student_id: str, req: AddPointsRequest, request: Request):
         update_data["creature_stages"] = creature_stages
         update_data["current_stage"] = current_stage
     _write_student_rewards(rewards_result, student_id, update_data)
+    if evolved_now:
+        _log_creature_stage(student_id, target_creature, current_stage, DEFAULT_CREATURE_FINAL_STAGE, colour=feeling_colour)
 
     creature_data = next((c for c in CREATURES if c["id"] == target_creature), CREATURES[0])
 
@@ -5377,6 +5384,8 @@ async def evolve_creature(student_id: str, req: EvolveRequest, request: Request)
         "current_stage": eligible_stage,
         "current_creature_id": creature_id,
     }).eq("student_id", student_id).execute()
+    _log_creature_stage(student_id, creature_id, eligible_stage, DEFAULT_CREATURE_FINAL_STAGE,
+                        colour=next((k for k, v in FEELING_COLOUR_MAP.items() if v == creature_id), None))
 
     creature_data = next((c for c in CREATURES if c["id"] == creature_id), CREATURES[0])
     # Real feature Sep 15 (B1, points economy v2): items reaching their unlock stage are now
@@ -6817,6 +6826,7 @@ def _commit_community_evolution(real_student_id: str, submission_id: str, eligib
             }).eq("id", submission_id).execute()
         except Exception as e:
             logger.warning(f"[creature-global-uses] could not increment global_uses for {submission_id}: {e}")
+    _log_creature_stage(real_student_id, submission_id, eligible_stage, COMMUNITY_CREATURE_FINAL_STAGE, colour=creature.get("emotion_colour"))
 
 def _creature_unlocks_for(user_id: str, real_student_id: Optional[str], creature_ids: list = None):
     """Real feature Aug 21: creature_unlocks was keyed only by the SUBMITTING ACCOUNT's user_id
@@ -22586,6 +22596,63 @@ def _school_strategies_for_user_sync(user: dict, strategy_type: Optional[str]) -
     else:
         wanted = {"student", "teacher", "parent"}
     return _fetch_school_strategies_sync(_school_admin_ids_for_user_sync(user), wanted)
+
+# ================== CREATURE STATS EVENTS (Phase 2) ==================
+# Server-side only (the client cannot write these: ENGAGEMENT_EVENT_TYPES above stays creature_view/item_view): one row per
+# creature check-in, per stage change and per completion, so per-creature and per-country stats can be exact going forward.
+# Best effort by design: every call is handed to a small thread pool and any failure is swallowed, so a check-in or an
+# evolve can never be slowed or broken by it. The payload holds ids only (creature, student, classroom, owning account,
+# school admin) - never a name. Needs the engagement_events columns colour, stage, classroom_id, user_id
+# (see ~/Desktop/creature-stats/01_engagement_events_columns.sql); until they exist the insert fails and is only logged.
+from concurrent.futures import ThreadPoolExecutor
+CREATURE_EVENT_TYPES = ("creature_checkin", "creature_stage", "creature_complete")
+DEFAULT_CREATURE_FINAL_STAGE = len(POINTS_CONFIG["evolution_thresholds"]) - 1     # 3: the fourth form
+COMMUNITY_CREATURE_FINAL_STAGE = 4
+_creature_event_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="creature-event")
+_creature_event_warned = False
+
+def _log_creature_event_sync(student_id: str, event_type: str, creature_id: str, colour: Optional[str] = None,
+                             stage: Optional[int] = None, student_data: Optional[dict] = None) -> None:
+    global _creature_event_warned
+    try:
+        sd = student_data
+        if sd is None:
+            r = supabase.table("students").select("classroom_id,user_id").eq("id", student_id).execute()
+            sd = r.data[0] if r.data else {}
+        try:
+            sa_id = _student_school_admin_id(student_id)
+        except Exception:
+            sa_id = None                                  # attribution is optional; never lose the event over it
+        supabase.table("engagement_events").insert({
+            "id": str(uuid.uuid4()),
+            "event_type": event_type,
+            "creature_id": creature_id,
+            "student_id": student_id,
+            "school_admin_id": sa_id,
+            "colour": colour,
+            "stage": stage,
+            "classroom_id": sd.get("classroom_id"),
+            "user_id": sd.get("user_id"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception as e:
+        if not _creature_event_warned:                   # one warning per process, not one per check-in
+            _creature_event_warned = True
+            logger.warning(f"[creature-event] {event_type} not logged (further failures are silent): {e}")
+
+def _log_creature_event(student_id: str, event_type: str, creature_id: str, colour: Optional[str] = None,
+                        stage: Optional[int] = None, student_data: Optional[dict] = None) -> None:
+    """Fire and forget. Never raises, never waits."""
+    try:
+        _creature_event_pool.submit(_log_creature_event_sync, student_id, event_type, creature_id, colour, stage, student_data)
+    except Exception:
+        pass
+
+def _log_creature_stage(student_id: str, creature_id: str, new_stage: int, final_stage: int, colour: Optional[str] = None) -> None:
+    """A stage change, plus a completion event when it is the last stage."""
+    _log_creature_event(student_id, "creature_stage", creature_id, colour=colour, stage=new_stage)
+    if new_stage >= final_stage:
+        _log_creature_event(student_id, "creature_complete", creature_id, colour=colour, stage=new_stage)
 
 # ================== ENGAGEMENT ANALYTICS ==================
 @api_router.post("/analytics/log-event")
