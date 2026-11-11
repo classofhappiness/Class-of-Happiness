@@ -1,5 +1,5 @@
 {
-  "_note": "17 children's drawn creatures, global, attributed to Class of Happiness only. Colours are Jono's table (blue 2, green 9, yellow 4, red 2). 'translations' (ar de es fr hi it pt ru zh) is filled in at step 4, after review.",
+  "_note": "18 children (17 + Petal)'s drawn creatures, global, attributed to Class of Happiness only. Colours are Jono's table (blue 3, green 9, yellow 4, red 2). 'translations' (ar de es fr hi it pt ru zh) is filled in at step 4, after review.",
   "creatures": [
     {
       "name": "Lucky Ducky",
@@ -85,6 +85,12 @@
       "name": "Flayda",
       "colour": "green",
       "en": "Flayda is a little flower that grows from a tiny bud into a big, colourful bloom."
+    },
+    {
+      "name": "Petal",
+      "colour": "blue",
+      "code": "PETAL001",
+      "en": "Petal hatches from an egg with a flower on top, grows pointy ears and big, curious eyes, and ends up with flowers, whiskers and sparkles. Petal feels calm and shares that calm with everyone."
     }
   ],
   "translations": {
@@ -274,6 +280,17 @@
       "pt": "Flayda é uma florzinha que cresce de um botão minúsculo até ser uma flor grande e colorida.",
       "ru": "Flayda — маленький цветок, который вырастает из крошечного бутона в большой яркий цветок.",
       "zh": "Flayda 是一朵小花，从一个小小的花蕾长成一朵大大的彩色花朵。"
+    },
+    "Petal": {
+      "ar": "يفقس Petal من بيضة تعلوها زهرة، وتنمو له أذنان مدبّبتان وعينان كبيرتان فضوليتان، ثم يصبح مزيّنًا بالزهور والشوارب والبريق. يشعر Petal بالهدوء ويشاركه مع الجميع.",
+      "de": "Petal schlüpft aus einem Ei mit einer Blume obendrauf, bekommt spitze Ohren und große, neugierige Augen und hat am Ende Blumen, Schnurrhaare und Funkeln. Petal fühlt sich ruhig und teilt diese Ruhe mit allen.",
+      "es": "Petal sale de un huevo con una flor encima, le crecen orejas puntiagudas y ojos grandes y curiosos, y acaba con flores, bigotes y destellos. Petal está en calma y comparte esa calma con todos.",
+      "fr": "Petal éclot d'un œuf avec une fleur dessus, se découvre des oreilles pointues et de grands yeux curieux, et finit avec des fleurs, des moustaches et des étincelles. Petal se sent calme et partage ce calme avec tout le monde.",
+      "hi": "Petal एक अंडे से निकलता है जिसके ऊपर एक फूल है, फिर उसके नुकीले कान और बड़ी, जिज्ञासु आँखें उग आती हैं, और अंत में वह फूलों, मूँछों और चमक से सज जाता है। Petal शांत महसूस करता है और वह शांति सबके साथ बाँटता है।",
+      "it": "Petal esce da un uovo con un fiore sopra, mette orecchie a punta e grandi occhi curiosi, e alla fine ha fiori, baffi e scintille. Petal si sente in calma e condivide quella calma con tutti.",
+      "pt": "Petal sai de um ovo com uma flor em cima, ganha orelhas pontiagudas e olhos grandes e curiosos, e fica com flores, bigodes e brilhos. Petal sente-se em calma e partilha essa calma com todos.",
+      "ru": "Petal вылупляется из яйца с цветком наверху, у него вырастают острые ушки и большие любопытные глаза, а в конце он украшен цветами, усиками и искорками. Petal спокоен и делится этим спокойствием со всеми.",
+      "zh": "Petal 从顶着一朵小花的蛋里孵出来，长出尖尖的耳朵和好奇的大眼睛，最后身上有了花朵、胡须和闪闪的光点。Petal 感到平静，并把这份平静分享给每一个人。"
     }
   }
 }

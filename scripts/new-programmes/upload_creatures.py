@@ -118,8 +118,11 @@ def inspect_png(path, want_size=None, max_side=None):
     return problems
 
 
+CODES = {}                               # optional explicit submission_code per creature ("code" in the json)
+
 def load_data():
     d = json.load(open(DATA))
+    CODES.update({c["name"]: c["code"].upper() for c in d["creatures"] if c.get("code")})
     return d["creatures"], d.get("translations", {})
 
 
@@ -148,7 +151,7 @@ def check_text(creatures, translations):
 
 def submission_code(name):
     """creature_submissions.submission_code is varchar(8) (the B2 codes are 8 characters): name upper-cased, no spaces, cut to 8."""
-    return name.upper().replace(" ", "")[:8]
+    return CODES.get(name) or name.upper().replace(" ", "")[:8]
 
 
 def build_row(c, translations, urls):
@@ -315,6 +318,10 @@ def main():
     if a.approve:
         return do_approve(latest_result())
     creatures, translations = load_data()
+    if a.only:                                   # --only limits dry run AND --apply to that one creature
+        creatures = [c for c in creatures if c["name"].lower() == a.only.lower()]
+        if not creatures:
+            sys.exit(f"No such creature: {a.only}")
     errs, missing_langs = check_text(creatures, translations)
     items = plan(creatures, translations)
     _, clash = existing_state(creatures)
