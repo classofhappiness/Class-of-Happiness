@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-11 (creature moderation: pending and awaiting-final-approval rows show an AI-check badge - red "AI flagged - check images", amber "AI check failed - review manually", amber "Busy background kept - check it"; nothing for clean/empty) -->
+<!-- COH-PORTAL-VERSION: 2026-11-11b (creature stage viewer: pending, awaiting-final-approval, approved and featured creatures show all stages with arrows and a 1/4 counter; replaces the single stage-1 thumbnail and the pending "See stages" link) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-11 (creature moderation: pending and awaiting-final-approval rows show an AI-check badge - red "AI flagged - check images", amber "AI check failed - review manually", amber "Busy background kept - check it"; nothing for clean/empty) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-10 (resources: COH Entrepreneur programme, Start here order, food/enterprise labels) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-03 (Superadmin Settings tab: "Enquiry email" - the address School Package enquiries are sent to, with Save and "Send test enquiry"; builds on 2026-11-01b) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-01b (Support Requests: Acknowledge shows only "Acknowledged" and never "On the way"; only a Yes reply shows "On the way"; No shows "Not available"; reply is Yes or No plus an optional comment) -->
@@ -6084,6 +6085,46 @@ function creaturesHTML(){
   '</div>';
 }
 
+// Stage viewer for a creature: shows stage1..stage4 (non-empty ones only) with arrows and an "n/N" counter. px = size in pixels,
+// or null for a fluid square (fills its container). Arrow clicks stop propagation so they never trigger a surrounding row/card
+// action. With a single stage there are no arrows or counter. c can be any object carrying stage1_url..stage4_url.
+function makeStageViewer(c, px){
+  var stages=[c.stage1_url,c.stage2_url,c.stage3_url,c.stage4_url].filter(Boolean);
+  var idx=0;
+  var wrap=document.createElement('div');
+  wrap.style.cssText=px?('position:relative;flex-shrink:0;width:'+px+'px;height:'+px+'px;border-radius:8px;overflow:hidden;background:#eee')
+                       :'position:relative;width:100%;aspect-ratio:1;background:#f5f5f5';
+  var img=document.createElement('img');
+  img.src=stages[0]||'';
+  img.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+  wrap.appendChild(img);
+  if(stages.length>1){
+    var small=!!px && px<=48;
+    var label=document.createElement('div');
+    label.style.cssText='position:absolute;bottom:2px;right:3px;background:rgba(0,0,0,.55);color:white;font-size:'+(small?'.5rem':'.6rem')+';font-weight:700;padding:.05rem .3rem;border-radius:8px';
+    label.textContent='1/'+stages.length;
+    wrap.appendChild(label);
+    var mk=function(dir,side){
+      var b=document.createElement('button');
+      b.type='button';
+      b.textContent=dir>0?'›':'‹';
+      b.setAttribute('aria-label',dir>0?'Next stage':'Previous stage');
+      var d=small?16:22;
+      b.style.cssText='position:absolute;top:50%;'+side+':2px;transform:translateY(-50%);width:'+d+'px;height:'+d+'px;border-radius:50%;border:none;background:rgba(255,255,255,.85);font-weight:900;cursor:pointer;font-size:'+(small?'.7rem':'.85rem')+';line-height:1;padding:0';
+      b.onclick=function(e){
+        if(e){e.stopPropagation();if(e.preventDefault)e.preventDefault();}
+        idx=(idx+dir+stages.length)%stages.length;
+        img.src=stages[idx];
+        label.textContent=(idx+1)+'/'+stages.length;
+      };
+      return b;
+    };
+    wrap.appendChild(mk(-1,'left'));
+    wrap.appendChild(mk(1,'right'));
+  }
+  return wrap;
+}
+
 // Creature moderation badge (ai_moderation_flag): flagged = the AI image check found something; error = the check could not
 // run; review = the auto-fit kept a busy photo background as it is. Nothing is shown for clean / empty.
 function aiFlagBadge(flag){
@@ -6110,9 +6151,7 @@ async function renderCreatures(){
         pending.forEach(function(c){
           var div=document.createElement('div');
           div.style.cssText='display:flex;gap:.75rem;padding:.75rem;border-radius:10px;background:var(--bg);margin-bottom:.5rem;align-items:flex-start';
-          var img=document.createElement('img');
-          img.src=c.stage1_url||'';
-          img.style.cssText='width:60px;height:60px;border-radius:8px;object-fit:cover;background:#eee';
+          var img=makeStageViewer(c,60);
           var body=document.createElement('div');
           body.style.flex='1';
           body.innerHTML='<div style="font-weight:900;color:var(--navy);font-size:.85rem">'+c.creature_name+'</div>'+
@@ -6129,12 +6168,7 @@ async function renderCreatures(){
           rejBtn.textContent='Reject';
           rejBtn.style.cssText='padding:.3rem .75rem;background:#E05252;color:white;border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer';
           rejBtn.onclick=function(){rejectCreature(c.id);};
-          var link=document.createElement('a');
-          link.href=c.stage2_url||'#';
-          link.target='_blank';
-          link.textContent='See stages';
-          link.style.cssText='padding:.3rem .75rem;background:var(--bg);color:var(--navy);border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;border:1px solid var(--border)';
-          btns.appendChild(appBtn);btns.appendChild(rejBtn);btns.appendChild(link);
+          btns.appendChild(appBtn);btns.appendChild(rejBtn);
           body.appendChild(btns);
           div.appendChild(img);div.appendChild(body);
           pel.appendChild(div);
@@ -6153,9 +6187,7 @@ async function renderCreatures(){
           var days=Math.max(0,Math.ceil((new Date(f.active_until)-Date.now())/86400000));
           var div=document.createElement('div');
           div.style.cssText='display:flex;gap:.6rem;align-items:center;padding:.6rem;background:var(--bg);border-radius:9px;margin-bottom:.4rem;border-left:3px solid '+(EMOS[f.emotion_colour]||'#ccc');
-          var img=document.createElement('img');
-          img.src=c.stage1_url||'';
-          img.style.cssText='width:44px;height:44px;border-radius:8px;object-fit:cover;background:#eee';
+          var img=makeStageViewer(c,44);
           var info=document.createElement('div');
           info.innerHTML='<div style="font-size:.82rem;font-weight:800">'+(c.creature_name||'')+'</div><div style="font-size:.68rem;color:var(--soft)">'+f.emotion_colour+' · '+days+' days left · '+(f.worldwide_unlocks||0)+' unlocks</div>';
           div.appendChild(img);div.appendChild(info);
@@ -6173,9 +6205,7 @@ async function renderCreatures(){
         approved.forEach(function(c){
           var card=document.createElement('div');
           card.style.cssText='border-radius:10px;overflow:hidden;background:white;box-shadow:0 2px 8px rgba(0,0,0,.06);border-top:3px solid '+(EMOS[c.emotion_colour]||'#ccc');
-          var img=document.createElement('img');
-          img.src=c.stage1_url||'';
-          img.style.cssText='width:100%;aspect-ratio:1;object-fit:cover;background:#f5f5f5';
+          var img=makeStageViewer(c,null);
           var body=document.createElement('div');
           body.style.padding='.5rem';
           var name=document.createElement('div');
@@ -6238,9 +6268,7 @@ async function renderSAAwaitingGlobalApproval(){
     rows.forEach(function(c){
       var div = document.createElement('div');
       div.style.cssText = 'display:flex;gap:.75rem;padding:.75rem;border-radius:10px;background:var(--bg);margin-bottom:.5rem;align-items:flex-start';
-      var img = document.createElement('img');
-      img.src = c.stage1_url || '';
-      img.style.cssText = 'width:60px;height:60px;border-radius:8px;object-fit:cover;background:#eee';
+      var img = makeStageViewer(c, 60);
       var body = document.createElement('div');
       body.style.flex = '1';
       body.innerHTML =
