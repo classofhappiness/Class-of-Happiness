@@ -183,7 +183,7 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
                   <View style={[s.zoneDot, { backgroundColor: ZONE_COLORS[sub.emotion_colour] || '#999' }]} />
                   <Text style={s.subName}>{sub.creature_name}</Text>
                 </View>
-                {(sub.ai_moderation_flag === 'flagged' || sub.ai_moderation_flag === 'error') && (
+                {(sub.ai_moderation_flag === 'flagged' || sub.ai_moderation_flag === 'error' || sub.ai_moderation_flag === 'review') && (
                   <Text style={{ fontSize: 11, fontWeight: '700', color: '#E65100', marginTop: 2 }}>
                     ⚠️ {t('creature_needs_extra_review') || 'Needs extra review by Class of Happiness before it goes live.'}
                   </Text>

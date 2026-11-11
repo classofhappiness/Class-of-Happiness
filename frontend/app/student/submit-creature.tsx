@@ -38,7 +38,7 @@ const TIP_KEYS = ['creature_tip_1', 'creature_tip_2', 'creature_tip_3', 'creatur
 // no emoji prefix by the time this was checked, so kept these in sync rather than leaving a
 // stale ✅/❌ version that could resurface if a translation ever goes missing.
 const TIP_FALLBACKS = [
-  'Use white paper or card as your background',
+  'Use white paper or card as your background - the app tidies the background and sizes your creature for you',
   'Draw or craft with clear colours',
   'Good lighting - near a window works great',
   'Show the creature growing across all 4 stages',

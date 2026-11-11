@@ -15022,7 +15022,9 @@ async def get_pending_creatures(request: Request):
 AI_ERROR_GATE_CUTOFF = datetime(2026, 10, 11, tzinfo=timezone.utc)
 
 def _ai_check_needs_superadmin(ai_moderation_flag, approved_at=None) -> bool:
-    if ai_moderation_flag == "flagged":
+    # "flagged": the AI image check found something. "review": the auto-fit could not cut the background out of a photo
+    # (see normalise_creature_stages) and kept it as it is, so a person should look at it. Both need superadmin's sign-off.
+    if ai_moderation_flag in ("flagged", "review"):
         return True
     if ai_moderation_flag != "error" or not approved_at:
         return False
@@ -26277,66 +26279,172 @@ def _generate_thumbnail_bytes(img_bytes: bytes, size: int = 200) -> Optional[byt
         logger.warning(f"[creature-thumbnail] generation failed: {e}")
         return None
 
-# --- Creature image normalisation (Script 16) -------------------------------------------------
-# Community creature art arrives at any canvas size with any amount of empty margin, so the
-# same creature looks tiny or huge in the app. This trims each stage to its visible pixels and
-# re-centres all four stages on one 1024x1024 transparent canvas with ONE shared scale (taken
-# from the largest stage) so growth between stages is preserved. Never crops, never distorts.
-# Fail-safe by construction: any problem (no alpha, animated, unreadable, storage error) leaves
-# the original images and the submission exactly as they were; the originals are never
-# overwritten (normalised copies get new object names and only then are the row's urls swapped).
+# --- Creature image normalisation (Script 16, extended: auto-fit) -------------------------------
+# Whatever a submitter sends (a phone photo of a drawing, a scan, a PNG with real transparency) ends up as the same
+# thing the live creatures are: four 1024x1024 PNGs on a transparent background, the creature at most 80% of the canvas,
+# centred horizontally and sitting on one baseline (y=922), with ONE shared scale taken from the largest stage so the
+# growth between stages is preserved. Never crops, never distorts. The submitter does nothing.
+#   * EXIF orientation is applied first (phone photos).
+#   * A plain paper background (one colour along the border) is removed: the border colour is sampled, the background is
+#     flood-filled from the edges with a tolerance, the edge is feathered with the paper colour taken back out of the
+#     fringe pixels (no light JPEG halo), and the paper colour left inside closed outlines becomes white, like the live art.
+#   * A busy background (a photo of a room, a table...) is NOT cut out: the whole picture is kept as it is, fitted on the
+#     canvas, and the submission is flagged "review" so superadmin looks at it (see _ai_check_needs_superadmin).
+#   * An image with real alpha gets no background processing at all. If all four are already in the standard form they are
+#     left byte for byte as uploaded.
+# Fail-safe by construction: any problem (unreadable, animated, empty, storage error) leaves the original images and the
+# submission exactly as they were; the originals are never overwritten (normalised copies get new object names and only
+# then are the row's urls swapped).
 CREATURE_NORM_CANVAS = 1024
 CREATURE_NORM_FILL = 0.80
+CREATURE_NORM_BASELINE = round(CREATURE_NORM_CANVAS * (1 + CREATURE_NORM_FILL) / 2)   # 922: bottom of a creature that fills 80%
+CREATURE_NORM_MAX_UPSCALE = 4.0      # a tiny picture is not blown up into a blur: it just stays smaller than 80%
 CREATURE_NORM_ALPHA_THRESHOLD = 12   # alpha <= this counts as transparent when finding the bounding box
+CREATURE_NORM_WORK_MAX = 1200        # non-alpha pictures are shrunk to this before the background work (speed)
+CREATURE_BG_TOL = 40                 # colour distance (largest channel difference) that still counts as paper
+CREATURE_BG_SOFT = 90                # beyond TOL and up to here, a pixel touching the paper is a feathered edge
+CREATURE_BG_BORDER_SPREAD = 0.10     # more than 10% of the border unlike its own median colour = a busy background
 _creature_norm_tasks: set = set()    # keeps references so background tasks are not garbage collected
 
 def _creature_norm_bbox(rgba):
     mask = rgba.getchannel("A").point(lambda v: 255 if v > CREATURE_NORM_ALPHA_THRESHOLD else 0)
     return mask.getbbox()
 
-def normalise_creature_stages(stage_bytes: list) -> Optional[list]:
-    """stage_bytes: 4 raw image byte strings. Returns 4 normalised PNG byte strings, or None
-    when the creature must be left alone (any stage unreadable, animated, without real
-    transparency or empty). Pure function, never raises."""
+def _creature_flood_from_edges(cand):
+    """cand: 2-D numpy bool (True = could be paper). Returns a same-shape bool: the candidate pixels connected to the image
+    edge. Scanline fill over row byte strings (bytes.find runs in C), so it costs per run, not per pixel."""
+    import numpy as np
+    h, w = cand.shape
+    avail = [bytearray(cand[y].astype(np.uint8).tobytes()) for y in range(h)]
+    filled = [bytearray(w) for _ in range(h)]
+    stack = []
+    for x in range(w):
+        stack.append((0, x)); stack.append((h - 1, x))
+    for y in range(h):
+        stack.append((y, 0)); stack.append((y, w - 1))
+    while stack:
+        y, x = stack.pop()
+        row = avail[y]
+        if not row[x]:
+            continue
+        a = row.rfind(0, 0, x) + 1
+        b = row.find(0, x)
+        b = w if b == -1 else b
+        row[a:b] = bytes(b - a)
+        filled[y][a:b] = b"\x01" * (b - a)
+        for ny in (y - 1, y + 1):
+            if 0 <= ny < h:
+                nrow, pos = avail[ny], a
+                while pos < b:
+                    i = nrow.find(1, pos, b)
+                    if i == -1:
+                        break
+                    stack.append((ny, i))
+                    j = nrow.find(0, i, b)
+                    pos = b if j == -1 else j
+    return np.frombuffer(b"".join(bytes(r) for r in filled), dtype=np.uint8).reshape(h, w).astype(bool)
+
+def _creature_knockout_paper(rgb):
+    """rgb: a Pillow RGB image. Returns a Pillow RGBA image with the plain paper background made transparent, or None when
+    the background is busy / the cut-out is not believable (the caller then keeps the picture as it is and flags it)."""
+    import numpy as np
+    from PIL import Image, ImageFilter
+    arr = np.asarray(rgb, dtype=np.float32)
+    h, w = arr.shape[:2]
+    if min(h, w) < 6:
+        return None
+    ring = max(2, int(round(min(h, w) * 0.015)))
+    border = np.concatenate([arr[:ring].reshape(-1, 3), arr[-ring:].reshape(-1, 3),
+                             arr[ring:-ring, :ring].reshape(-1, 3), arr[ring:-ring, -ring:].reshape(-1, 3)])
+    bg = np.median(border, axis=0)
+    if float((np.abs(border - bg).max(axis=1) > CREATURE_BG_TOL).mean()) > CREATURE_BG_BORDER_SPREAD:
+        return None                                       # busy background
+    dist = np.abs(arr - bg).max(axis=2)
+    cand = dist <= CREATURE_BG_TOL
+    bgmask = _creature_flood_from_edges(cand)
+    fg_fraction = 1.0 - float(bgmask.mean())
+    if fg_fraction < 0.004 or fg_fraction > 0.92:
+        return None                                       # nothing left, or the paper never separated from the picture
+    # feathered edge: unconnected-to-paper pixels that touch the paper and are only a little unlike it are partly paper
+    near = np.asarray(Image.fromarray((bgmask * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 0
+    fringe = near & ~bgmask & ~cand & (dist <= CREATURE_BG_SOFT)
+    alpha = np.ones((h, w), dtype=np.float32)
+    alpha[bgmask] = 0.0
+    alpha[fringe] = np.clip((dist[fringe] - CREATURE_BG_TOL) / float(CREATURE_BG_SOFT - CREATURE_BG_TOL), 0.0, 1.0)
+    out = arr.copy()
+    a3 = alpha[fringe][:, None]
+    out[fringe] = np.clip((arr[fringe] - bg * (1.0 - a3)) / np.maximum(a3, 1e-3), 0, 255)   # take the paper colour out of the fringe
+    out[cand & ~bgmask] = 255.0                           # paper inside closed outlines becomes white, like the live creatures
+    # one [1 2 1]/4 pass on alpha and premultiplied colour: a soft edge with no light halo
+    def blur(a):
+        pad = np.pad(a, [(1, 1), (0, 0)] + [(0, 0)] * (a.ndim - 2), mode="edge")
+        v = (pad[:-2] + 2 * pad[1:-1] + pad[2:]) / 4.0
+        pad = np.pad(v, [(0, 0), (1, 1)] + [(0, 0)] * (v.ndim - 2), mode="edge")
+        return (pad[:, :-2] + 2 * pad[:, 1:-1] + pad[:, 2:]) / 4.0
+    pre = blur(out * alpha[..., None])
+    ab = blur(alpha)
+    out = np.where(ab[..., None] > 1e-3, pre / np.maximum(ab[..., None], 1e-3), out)
+    rgba = np.dstack([np.clip(out, 0, 255), np.clip(ab, 0, 1) * 255.0]).astype(np.uint8)
+    return Image.fromarray(rgba, "RGBA")
+
+def normalise_creature_stages(stage_bytes: list) -> Optional[tuple]:
+    """stage_bytes: 4 raw image byte strings. Returns (four normalised PNG byte strings, needs_review) or None when the
+    creature must be left alone (any stage unreadable, animated or empty; or all four already in the standard form with
+    real alpha). needs_review is True when at least one stage had a busy background that was kept as it is. Pure function,
+    never raises."""
     try:
         import io
-        from PIL import Image
-        stages = []
+        from PIL import Image, ImageOps
+        stages = []                    # (rgba image, visible bbox, native_alpha)
+        needs_review = False
         for b in stage_bytes:
             im = Image.open(io.BytesIO(b))
             if im.size[0] * im.size[1] > _CREATURE_UPLOAD_MAX_PIXELS:         # fix48: pixel cap before any decoding
                 return None
             if getattr(im, "n_frames", 1) > 1:
                 return None
+            im = ImageOps.exif_transpose(im)
             has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
-            rgba = im.convert("RGBA")
-            if not has_alpha or rgba.getchannel("A").getextrema()[0] >= 250:
-                return None
-            bbox = _creature_norm_bbox(rgba)
+            rgba = im.convert("RGBA") if has_alpha else None
+            native = bool(has_alpha) and rgba.getchannel("A").getextrema()[0] < 250   # real transparency, not a fully opaque alpha channel
+            if native:
+                bbox = _creature_norm_bbox(rgba)                                  # no background processing for real alpha
+            else:
+                if rgba is not None:
+                    rgb = Image.alpha_composite(Image.new("RGBA", rgba.size, (255, 255, 255, 255)), rgba).convert("RGB")
+                else:
+                    rgb = im.convert("RGB")
+                if max(rgb.size) > CREATURE_NORM_WORK_MAX:
+                    rgb.thumbnail((CREATURE_NORM_WORK_MAX, CREATURE_NORM_WORK_MAX), Image.LANCZOS)
+                rgba = _creature_knockout_paper(rgb)
+                if rgba is not None:
+                    bbox = _creature_norm_bbox(rgba)
+                else:                                                             # busy background: keep the picture as it is, flag it
+                    rgba = rgb.convert("RGBA")
+                    bbox = (0, 0) + rgba.size                                     # the whole rectangle is the "creature"
+                    needs_review = True
             if bbox is None:
                 return None
-            stages.append((rgba, bbox))
-        ref_w, ref_h = max(((bb[2] - bb[0], bb[3] - bb[1]) for _, bb in stages), key=lambda wh: max(wh))
-        scale = CREATURE_NORM_CANVAS * CREATURE_NORM_FILL / max(ref_w, ref_h)
-        # fix46: the shared bottom line has to leave room for the TALLEST stage: a tall stage next to a wide reference used
-        # to start above the canvas and lose its top. The bottom is centred on the reference stage as before (so every
-        # creature that already fitted is unchanged, byte for byte) and is only pushed down when the tallest scaled stage
-        # would otherwise rise into the top margin ((1 - fill) / 2 of the canvas). With a tallest stage of 819 px the
-        # result equals (1024 + max_h * scale) / 2.
-        max_h = max(bb[3] - bb[1] for _, bb in stages)
-        top_margin = CREATURE_NORM_CANVAS * (1 - CREATURE_NORM_FILL) / 2.0
-        bottom = max((CREATURE_NORM_CANVAS + ref_h * scale) / 2.0, top_margin + max_h * scale)
+            stages.append((rgba, bbox, native))
+        if all(n for _, _, n in stages) and all(
+                r.size == (CREATURE_NORM_CANVAS, CREATURE_NORM_CANVAS)
+                and (bb[2] - bb[0]) <= CREATURE_NORM_CANVAS * CREATURE_NORM_FILL + 1 and (bb[3] - bb[1]) <= CREATURE_NORM_CANVAS * CREATURE_NORM_FILL + 1
+                and abs((bb[0] + bb[2]) / 2.0 - CREATURE_NORM_CANVAS / 2.0) <= 2 and abs(bb[3] - CREATURE_NORM_BASELINE) <= 2
+                for r, bb, _ in stages):
+            return None                                                       # already the standard form: leave the uploads untouched
+        ref = max(max(bb[2] - bb[0], bb[3] - bb[1]) for _, bb, _ in stages)
+        scale = min(CREATURE_NORM_MAX_UPSCALE, CREATURE_NORM_CANVAS * CREATURE_NORM_FILL / ref)
         out_list = []
-        for rgba, (l, t, r, b) in stages:
+        for rgba, (l, t, r, b), _ in stages:
             crop = rgba.crop((l, t, r, b)).convert("RGBa")   # premultiplied: no halos when resizing
             nw, nh = max(1, round((r - l) * scale)), max(1, round((b - t) * scale))
             crop = crop.resize((nw, nh), Image.LANCZOS).convert("RGBA")
             canvas = Image.new("RGBA", (CREATURE_NORM_CANVAS, CREATURE_NORM_CANVAS), (0, 0, 0, 0))
-            canvas.paste(crop, (round((CREATURE_NORM_CANVAS - nw) / 2.0), round(bottom - nh)))  # no mask: keeps edge alpha
+            canvas.paste(crop, (round((CREATURE_NORM_CANVAS - nw) / 2.0), CREATURE_NORM_BASELINE - nh))  # no mask: keeps edge alpha
             buf = io.BytesIO()
             canvas.save(buf, format="PNG", optimize=True)
             out_list.append(buf.getvalue())
-        return out_list
+        return out_list, needs_review
     except Exception as e:
         logger.warning(f"[creature-normalise] left alone, could not normalise: {e}")
         return None
@@ -26363,10 +26471,11 @@ def _normalise_submission_images_sync(submission_id: str, urls: list) -> None:
         if any(len(b) > _CREATURE_UPLOAD_MAX_BYTES for b in originals):      # fix48: size cap on what the worker downloads
             logger.info(f"[creature-normalise] {submission_id}: an image is over the size cap, left alone")
             return
-        normalised = normalise_creature_stages(originals)
-        if not normalised:
-            logger.info(f"[creature-normalise] {submission_id}: left alone (no usable alpha / unreadable)")
+        result = normalise_creature_stages(originals)
+        if not result:
+            logger.info(f"[creature-normalise] {submission_id}: left alone (unreadable / empty / already in the standard form)")
             return
+        normalised, needs_review = result
         import uuid
         tag = uuid.uuid4().hex[:8]
         new_urls = {}
@@ -26378,8 +26487,17 @@ def _normalise_submission_images_sync(submission_id: str, urls: list) -> None:
             if thumb:
                 bucket.upload(_thumb_object_path(new_path), thumb, {"content-type": "image/png", "upsert": "true"})
             new_urls[f"stage{i}_url"] = bucket.get_public_url(new_path)
+        if needs_review:
+            # A busy background was kept as it is: send the submission to superadmin's review (flag value "review", see
+            # _ai_check_needs_superadmin). An AI "flagged" is never replaced - it already sends it there.
+            try:
+                cur = supabase.table("creature_submissions").select("ai_moderation_flag").eq("id", submission_id).execute()
+                if cur.data and cur.data[0].get("ai_moderation_flag") in (None, "clean", "error"):
+                    new_urls["ai_moderation_flag"] = "review"
+            except Exception as e:
+                logger.warning(f"[creature-normalise] {submission_id}: could not read the moderation flag, review flag not set: {e}")
         supabase.table("creature_submissions").update(new_urls).eq("id", submission_id).execute()
-        logger.info(f"[creature-normalise] {submission_id}: normalised 4 stages")
+        logger.info(f"[creature-normalise] {submission_id}: normalised 4 stages" + (" (busy background kept, flagged for review)" if needs_review else ""))
     except Exception as e:
         logger.warning(f"[creature-normalise] {submission_id}: failed, originals kept: {e}")
 

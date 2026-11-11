@@ -1930,6 +1930,8 @@ function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
   const flagged = c.ai_moderation_flag === 'flagged';
   // Oct 11: a failed AI check (flag 'error') also needs a human look, so say so.
   const aiFailed = c.ai_moderation_flag === 'error';
+  // Busy photo background kept as-is by the auto-fit normaliser (flag 'review'): a human should look at the picture.
+  const busyBg = c.ai_moderation_flag === 'review';
   return (
     <View style={s.creatureCard}>
       <View style={s.creatureTopRow}>
@@ -1943,6 +1945,11 @@ function CreaturePendingCard({ c, onApprove, onReject, onDelete, busy }: any) {
         {aiFailed && (
           <View style={s.flaggedBadge}>
             <Text style={s.flaggedBadgeText}>⚠️ {t('ai_check_failed_review') || 'AI check could not run: please review'}</Text>
+          </View>
+        )}
+        {busyBg && (
+          <View style={s.flaggedBadge}>
+            <Text style={s.flaggedBadgeText}>⚠️ {t('ai_check_background_review') || 'Busy background kept as-is: please review the picture'}</Text>
           </View>
         )}
       </View>
