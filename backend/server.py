@@ -14802,6 +14802,18 @@ async def _run_ai_moderation(image_urls: list) -> str:
         logger.warning(f"[ai_moderation] SafeSearch check failed, treating as unreviewed (never blocks submission): {e}")
         return "error"
 
+def _creature_colour_limit_hit(user: dict, emotion: str) -> bool:
+    """One pending-or-approved creature per emotion colour per submitting ACCOUNT (creature_submissions.student_id is
+    the account's user_id, not a student profile). It applies only where the creature free-tier rules apply:
+    _is_genuinely_free_tier is False for an account on a paid plan in date, a valid trial, a school-covered teacher or
+    parent, and every FULL_ACCESS_EMAILS account (that list is already inside _paid_plan_in_force, so it stays the ONE
+    editable exempt list). Moderation is not touched: scope clamping, the teacher/school/superadmin approval gate and the
+    AI image flag all run for every submission, exempt or not."""
+    if not _is_genuinely_free_tier(user):
+        return False
+    existing = supabase.table("creature_submissions").select("id").eq("student_id", user["user_id"]).eq("emotion_colour", emotion).in_("status", ["pending", "approved"]).execute()
+    return bool(existing.data)
+
 @api_router.post("/creatures/submit")
 async def submit_creature(request: Request):
     """Student submits a creature using 4 Supabase Storage URLs + a code."""
@@ -14842,9 +14854,8 @@ async def submit_creature(request: Request):
         raise HTTPException(status_code=400, detail="Code has been used too many times")
     if _fromiso(c["expires_at"]) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Code has expired")
-    # Check student hasn't already submitted this colour
-    existing = supabase.table("creature_submissions").select("id")        .eq("student_id", user["user_id"])        .eq("emotion_colour", emotion)        .in_("status", ["pending","approved"])        .execute()
-    if existing.data:
+    # Check student hasn't already submitted this colour (free tier only - see _creature_colour_limit_hit)
+    if _creature_colour_limit_hit(user, emotion):
         raise HTTPException(status_code=400, detail=f"You already have a {emotion} creature submitted or approved")
 
     # Real feature Aug 24 (item 2, free-tier submission cap): mirrors the existing
