@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-10 (resources: COH Entrepreneur programme, Start here order, food/enterprise labels) -->
+<!-- COH-PORTAL-VERSION: 2026-11-11 (creature moderation: pending and awaiting-final-approval rows show an AI-check badge - red "AI flagged - check images", amber "AI check failed - review manually", amber "Busy background kept - check it"; nothing for clean/empty) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-10 (resources: COH Entrepreneur programme, Start here order, food/enterprise labels) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-03 (Superadmin Settings tab: "Enquiry email" - the address School Package enquiries are sent to, with Save and "Send test enquiry"; builds on 2026-11-01b) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-01b (Support Requests: Acknowledge shows only "Acknowledged" and never "On the way"; only a Yes reply shows "On the way"; No shows "Not available"; reply is Yes or No plus an optional comment) -->
 <!-- COH-PORTAL-VERSION: 2026-11-01 (Support Requests: a reply is Yes or No plus an optional comment (no free-text-only replies); Yes shows "On the way", No shows "Not available"; older free-text replies still display) -->
@@ -6083,6 +6084,18 @@ function creaturesHTML(){
   '</div>';
 }
 
+// Creature moderation badge (ai_moderation_flag): flagged = the AI image check found something; error = the check could not
+// run; review = the auto-fit kept a busy photo background as it is. Nothing is shown for clean / empty.
+function aiFlagBadge(flag){
+  var cfg={
+    flagged:['#FFEBEE','#C62828','AI flagged - check images'],
+    error:['#FFF3E0','#E65100','AI check failed - review manually'],
+    review:['#FFF3E0','#E65100','Busy background kept - check it']
+  }[flag];
+  if(!cfg) return '';
+  return '<div style="display:inline-block;margin:.15rem 0 .25rem;padding:.15rem .5rem;border-radius:6px;background:'+cfg[0]+';color:'+cfg[1]+';font-size:.68rem;font-weight:800">⚠️ '+cfg[2]+'</div>';
+}
+
 async function renderCreatures(){
   if(!token){console.log('renderCreatures: not authenticated yet');return;}
   var EMOS={green:'#4CAF73',blue:'#4A90D9',yellow:'#FFC107',red:'#E05252'};
@@ -6103,6 +6116,7 @@ async function renderCreatures(){
           var body=document.createElement('div');
           body.style.flex='1';
           body.innerHTML='<div style="font-weight:900;color:var(--navy);font-size:.85rem">'+c.creature_name+'</div>'+
+            aiFlagBadge(c.ai_moderation_flag)+
             '<div style="font-size:.72rem;color:var(--soft);margin:.2rem 0">'+c.emotion_colour+' · '+c.student_name+'</div>'+
             '<div style="font-size:.68rem;color:var(--muted)">'+c.description+'</div>';
           var btns=document.createElement('div');
@@ -6231,6 +6245,7 @@ async function renderSAAwaitingGlobalApproval(){
       body.style.flex = '1';
       body.innerHTML =
         '<div style="font-weight:900;color:var(--navy);font-size:.85rem">'+esc(c.creature_name||'')+'</div>'+
+        aiFlagBadge(c.ai_moderation_flag)+
         '<div style="font-size:.72rem;color:var(--soft);margin:.2rem 0">'+esc(c.emotion_colour||'')+' · '+esc(c.student_name||'')+' · '+esc(c.school_name||'')+(c.country?' · '+esc(c.country):'')+'</div>';
       var scopeRow = document.createElement('div');
       scopeRow.style.cssText = 'margin-top:.4rem';
