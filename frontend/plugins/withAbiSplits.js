@@ -11,8 +11,9 @@
 // through Google Play, which does this same per-device split for free) - real users
 // downloading it directly pay for the full universal size otherwise.
 //
-// universalApk: false - don't also produce the big combined file; every /preview build from
-// here on emits 4 real, separately-sized per-architecture APKs instead.
+// universalApk: true (build 25, Nov 14) - ALSO produce the combined all-architecture APK next to the 4
+// per-architecture ones, so the website can serve one file that installs on any phone (old 32-bit
+// and x86 included). The per-architecture APKs are still emitted for direct sideloading on modern phones.
 const { withAppBuildGradle } = require('@expo/config-plugins');
 
 const SPLIT_BLOCK = `
@@ -20,7 +21,7 @@ const SPLIT_BLOCK = `
         abi {
             reset()
             enable true
-            universalApk false
+            universalApk true
             include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
         }
     }
