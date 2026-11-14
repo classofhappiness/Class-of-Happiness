@@ -4329,7 +4329,28 @@ def _resolve_student_strategies_sync(user: dict, student_id: str, colour: Option
         item = dict(r)
         item.update({"_kind": "school_wide", "origin": "both" if home_sees_school else "school", "source": "school", "creator_role": "school_admin"})
         out.append(item)
-    return out
+    # Management views (include_inactive) need every row id; the child's own list must never show one strategy twice.
+    return out if include_inactive else _collapse_same_strategies(out)
+
+# Which copy survives when the same name+colour reaches a child from several sources: the child-specific row first, then a
+# guardian's family-level row, then a parent-assigned one, then a school-wide one. Within one kind the oldest row wins.
+_STRATEGY_KIND_RANK = {"custom_student": 0, "custom_family": 1, "family_assigned": 2, "school_wide": 3}
+
+def _collapse_same_strategies(items: list) -> list:
+    """One entry per lowercase name + colour, in the order the survivors first appeared. Items without a name are kept."""
+    def key(i):
+        name = str(i.get("name") or "").strip().lower()
+        return (name, str(i.get("feeling_colour") or i.get("zone") or "").strip().lower()) if name else None
+    best = {}
+    for idx, i in enumerate(items):
+        k = key(i)
+        if k is None:
+            continue
+        rank = (_STRATEGY_KIND_RANK.get(i.get("_kind"), 9), str(i.get("created_at") or ""), idx)
+        if k not in best or rank < best[k][0]:
+            best[k] = (rank, idx)
+    keep = {idx for _, idx in best.values()}
+    return [i for idx, i in enumerate(items) if key(i) is None or idx in keep]
 
 def _resolve_family_only_strategies_sync(user: dict, member_id: str, colour: Optional[str] = None) -> list:
     """A child that exists only as a family member (no students row): the parent's own home strategies for it."""

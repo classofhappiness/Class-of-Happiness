@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../../src/context/AppContext';
 import { useAndroidKeyboardOffset } from '../../../src/utils/useAndroidKeyboardOffset';
 import { EMOTION_COLOURS } from '../../../src/constants/emotionColours';
+import { strategyColour } from '../../../src/utils/strategyDisplay';
 import { linkedChildApi, LinkedChild, FamilyAssignedStrategy, familyApi } from '../../../src/utils/api';
 import { EmotionColourLoader } from '../../../src/components/EmotionColourLoader';
 import { TranslatedHeader } from '../../../src/components/TranslatedHeader';
@@ -718,7 +719,7 @@ export default function LinkedChildDetailScreen() {
                 : schoolStrats.length===0
                   ? <Text style={s.empty}>{t('no_school_strategies_shared') || 'No school strategies shared yet'}</Text>
                   : schoolStrats.map((st:any,i:number) => {
-                      const col = ZONE_COLORS[st.feeling_colour || st.zone] || '#5C6BC0';
+                      const col = strategyColour(st.feeling_colour || st.zone);
                       return (
                         <View key={st.id||i} style={s.stratCard}>
                           <View style={{width:34,height:34,borderRadius:17,backgroundColor:col,alignItems:'center',justifyContent:'center'}}>
@@ -741,7 +742,7 @@ export default function LinkedChildDetailScreen() {
               ? <Text style={s.empty}>{t('add_strategies_for_home') || 'Add your own strategies for home'}</Text>
               : familyStrats.map((st:any) => (
                 <View key={st.id} style={s.stratCard}>
-                  <View style={{width:34,height:34,borderRadius:17,backgroundColor:ZONE_COLORS[st.zone||st.feeling_colour]||'#4CAF50',alignItems:'center',justifyContent:'center'}}>
+                  <View style={{width:34,height:34,borderRadius:17,backgroundColor:strategyColour(st.zone||st.feeling_colour),alignItems:'center',justifyContent:'center'}}>
                     <StrategyIcon icon={st.icon || 'star'} size={20} color="white" />
                   </View>
                   <View style={{flex:1,marginLeft:10}}>

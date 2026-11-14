@@ -16,6 +16,7 @@ import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { useFixedGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
 import { StrategyIcon } from '../../src/components/StrategyIcon';
 import { resolveStrategyName, strategyLabel } from '../../src/utils/resolveStrategyName';
+import { strategyColour, strategyTint, dropNamesAlreadyShown } from '../../src/utils/strategyDisplay';
 import { PersonalStrategy, PersonalColour, PERSONAL_COLOURS, loadLocalPersonalStrategies, syncPersonalStrategies, addPersonalStrategy, updatePersonalStrategy, deletePersonalStrategy } from '../../src/utils/personalStrategies';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { getDownloadUrl } from '../../src/utils/downloadLink';
@@ -335,9 +336,6 @@ export default function TeacherCheckInScreen() {
     );
   };
 
-  // Oct 11: only active personal strategies that belong to the selected colour (All colours = every colour)
-  const zonePersonalStrategies = useMemo(() => customStrategies.filter(c => c.active && !!selectedZone && c.colours.includes(selectedZone as PersonalColour)), [customStrategies, selectedZone]);
-
   const strategiesForZone = useMemo(() => {
     if (!selectedZone) return [];
     // Item 24 fix (2026-09-26): TEACHER_STRATEGIES is the built-in/global list (same for
@@ -364,8 +362,16 @@ export default function TeacherCheckInScreen() {
       icon: s.icon || 'star',
       // Oct 11: strategies the school admin added (school_ ids / source 'school') get a small school icon on the card
       fromSchool: s.source === 'school' || String(s.id || '').startsWith('school_'),
+      fromDB: true,
     }))];
   }, [selectedZone, adminStrategies, t]);
+
+  // Oct 11: only active personal strategies that belong to the selected colour (All colours = every colour). A personal
+  // strategy with the same name as one the school/admin list already shows is hidden here (the school one stays), so it is never listed twice.
+  const zonePersonalStrategies = useMemo(() => dropNamesAlreadyShown(
+    customStrategies.filter(c => c.active && !!selectedZone && c.colours.includes(selectedZone as PersonalColour)),
+    strategiesForZone.filter((s: any) => s.fromDB),
+  ), [customStrategies, selectedZone, strategiesForZone]);
 
   const toggleStrategy = (id: string) => {
     setSelectedStrategies(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -767,8 +773,8 @@ export default function TeacherCheckInScreen() {
                     style={[styles.strategyCard, selectedStrategies.includes(s.id) && { borderColor: zoneConfig?.color, borderWidth: 2, backgroundColor: zoneConfig?.color + '15' }]}
                     onPress={() => toggleStrategy(s.id)}
                   >
-                    <View style={[styles.strategyIcon, { backgroundColor: '#E8EAF6' }]}>
-                      <MaterialIcons name="star" size={22} color="#5C6BC0" />
+                    <View style={[styles.strategyIcon, { backgroundColor: strategyTint(selectedZone) }]}>
+                      <MaterialIcons name="star" size={22} color={strategyColour(selectedZone)} />
                     </View>
                     <View style={styles.strategyText}>
                       <Text style={styles.strategyName}>{s.name}</Text>

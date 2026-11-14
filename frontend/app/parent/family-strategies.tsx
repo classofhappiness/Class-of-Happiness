@@ -9,6 +9,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
+import { strategyColour } from '../../src/utils/strategyDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
@@ -411,7 +412,7 @@ export default function FamilyStrategiesScreen() {
                     size={20} color="#5C6BC0"
                   />
                 )}
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: ZONE_COLORS[s.feeling_colour || s.zone || 'green'] || '#5C6BC0', flexShrink: 0 }} />
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: strategyColour(s.feeling_colour || s.zone || 'green'), flexShrink: 0 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>{((s as any).nameKey && t((s as any).nameKey)) || s.name}</Text>
                   {s.description ? <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{((s as any).descKey && t((s as any).descKey)) || s.description}</Text> : null}
