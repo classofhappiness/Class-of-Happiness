@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, TouchableOpacity, RefreshControl, Modal, Alert, Platform, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, TouchableOpacity, RefreshControl, Modal, Alert, Platform, Linking, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -512,7 +513,7 @@ export default function TeacherResourcesScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       {linkGate.gate}
       {/* Real fix Sep 18: this screen imported TranslatedHeader (which is where the COH logo
           actually comes from) but never once rendered it - it always used a separate,

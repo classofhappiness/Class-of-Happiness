@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -122,7 +123,7 @@ export default function ManageStudentsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       {/* Header rule (Sep 18/19): home only when back doesn't reach the dashboard in one tap.
           This screen's only entry is the teacher dashboard's Students tile (traced Sep 19,
           no other call site, notification route or deep link), so back already does that. */}

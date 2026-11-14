@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Animated } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -254,7 +255,7 @@ export default function SupportRequestScreen() {
 
   if (viewLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
         <TranslatedHeader title={t('support_request_header_title') || '🔔 Support Request'} backTo="/teacher/dashboard" />
         <View style={styles.successScreen}>
           <ActivityIndicator color="#5C6BC0" />
@@ -270,7 +271,7 @@ export default function SupportRequestScreen() {
     // just as terminal as RESOLVED, the Arrived/Cancel actions make no sense on either.
     const isOpen = sentRequest.status === 'PENDING' || sentRequest.status === 'ACKNOWLEDGED';
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
         <TranslatedHeader title={who} backTo="/teacher/dashboard" />
         {/* Real fix Sep 11: this was a plain View, not scrollable - with the dot/title/
             text plus now up to three buttons (Arrived/Cancel/Back to Dashboard), a small
@@ -339,7 +340,7 @@ export default function SupportRequestScreen() {
 
   if (step === 'classroom') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
         <TranslatedHeader title={t('support_request_header_title') || '🔔 Support Request'} backTo="/teacher/dashboard" />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
           <Text style={styles.stepSubtitle}>{t('support_request_select_classroom') || 'Select a classroom'}</Text>
@@ -365,7 +366,7 @@ export default function SupportRequestScreen() {
 
   if (step === 'student') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
         <TranslatedHeader title={classroomName} onBackPress={() => setStep('classroom')} showHome />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
           <Text style={styles.stepSubtitle}>{t('support_request_select_student') || 'Select a student, or the whole classroom'}</Text>
@@ -440,7 +441,7 @@ export default function SupportRequestScreen() {
 
   if (step === 'type') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
         <TranslatedHeader title={studentName} onBackPress={() => setStep('student')} showHome />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
           <Text style={styles.stepSubtitle}>{t('support_request_whats_needed_title') || "What's needed?"}</Text>
@@ -469,7 +470,7 @@ export default function SupportRequestScreen() {
   const isClassroomIncident = requestType === 'INCIDENT' && !studentId;
   const isClassroomLevel = isClassroomSupport || isClassroomIncident;
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <TranslatedHeader
         title={isClassroomLevel ? (t('support_request_whole_classroom_header') || 'Whole classroom') : studentName}
         onBackPress={() => setStep(isClassroomLevel ? 'student' : 'type')}
