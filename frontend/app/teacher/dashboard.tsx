@@ -585,20 +585,18 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
                   <TouchableOpacity
                     onPress={() => handleShowClassCode(c.id, c.name)}
                     disabled={classCodeLoading === c.id}
-                    style={{width:26, height:26, borderRadius:13, backgroundColor:'#F0F4FF',
-                      justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#C5CAE9'}}>
+                    style={st.classCodeBtn}>
                     <MaterialIcons
                       name={classCodeLoading===c.id ? 'hourglass-empty' : 'vpn-key'}
-                      size={13} color="#5C6BC0" />
+                      size={20} color="#5C6BC0" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => handleCopyClassCode(c.id, c.name)}
                     disabled={classCodeCopying === c.id}
-                    style={{width:26, height:26, borderRadius:13, backgroundColor:'#F0F4FF',
-                      justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#C5CAE9'}}>
+                    style={st.classCodeBtn}>
                     <MaterialIcons
                       name={classCodeCopying===c.id ? 'hourglass-empty' : 'content-copy'}
-                      size={13} color="#5C6BC0" />
+                      size={20} color="#5C6BC0" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -870,6 +868,8 @@ const st = StyleSheet.create({
   iconBtn: { flex:1, alignItems:'center', gap:3 },
   iconCircle: { width:40, height:40, borderRadius:20, alignItems:'center', justifyContent:'center', position:'relative' },
   iconLbl: { fontSize:9, color:'#555', textAlign:'center', fontWeight:'600', lineHeight:11 },
+  // S10: key / copy buttons beside each classroom chip - 40 pt circle, 20 pt glyph (were 26 pt / 13 pt, too small to hit)
+  classCodeBtn: { width:40, height:40, borderRadius:20, backgroundColor:'#F0F4FF', justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#C5CAE9' },
   badge: { position:'absolute', top:-2, right:-2, width:14, height:14, borderRadius:7, alignItems:'center', justifyContent:'center' },
   badgeTxt: { fontSize:8, color:'white', fontWeight:'700' },
   periodRow: { flexDirection:'row', marginHorizontal:16, marginTop:2, marginBottom:0, backgroundColor:'#EDEDF5', borderRadius:10, padding:3 },
