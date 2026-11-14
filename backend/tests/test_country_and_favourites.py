@@ -38,7 +38,7 @@ class _Q:
             rows.append(dict(self.payload)); return type("R", (), {"data": [dict(self.payload)]})()
         hit = [r for r in rows if all(r.get(k) == v for k, v in self.eqs.items())
                and all(r.get(k) in vs for k, vs in self.ins.items())
-               and all(str(r.get(k)) >= v for k, v in self.gte_.items())
+               and all(r.get(k) is not None and str(r.get(k)) >= v for k, v in self.gte_.items())
                and all(str(r.get(k)) < v for k, v in self.lt_.items())]
         if self.mode == "update":
             for r in hit: r.update(self.payload)
@@ -205,89 +205,74 @@ def test_signup_survives_the_migration_not_being_applied(signup_db):
 
 
 # ---------------------------------------------------------------- ranking (pure)
-def ev(cid, n_students, per_student=1):
-    return [(cid, f"{cid}-s{i}") for i in range(n_students) for _ in range(per_student)]
+def st(cid, n, prefix=None):
+    return [(cid, f"{prefix or cid}-s{i}") for i in range(n)]
 
 
-def test_ranking_needs_five_distinct_students_not_five_checkins():
-    one_kid = [("a", "s1")] * 40                                                      # 40 check-ins by one child
-    rows = S._rank_creature_favourites(one_kid + ev("b", 5) + ev("c", 6) + ev("d", 5), [])
-    assert [r["creature_id"] for r in rows] == ["c", "b", "d"] or {r["creature_id"] for r in rows} == {"b", "c", "d"}
-    assert "a" not in {r["creature_id"] for r in rows}
+def test_ranking_needs_five_distinct_students_and_repeats_count_once():
+    one_kid = [("a", "s1")] * 40                                                      # one child starting it 40 times
+    rows = S._rank_creature_favourites(one_kid + st("b", 5) + st("c", 6) + st("d", 5) + st("e", 4), [])
+    assert [r["creature_id"] for r in rows] == ["c", "b", "d"] and {r["creature_id"] for r in rows} == {"b", "c", "d"}
+    assert all(r["students"] >= 5 for r in rows)
 
 
-def test_ranking_orders_by_checkins_then_completions_then_id():
-    ci = ev("a", 5, 3) + ev("b", 5, 3) + ev("c", 5, 3) + ev("d", 5, 2)
-    done = [("b", "x1"), ("b", "x2"), ("c", "x3")]
-    rows = S._rank_creature_favourites(ci, done)
-    assert [r["creature_id"] for r in rows] == ["b", "c", "a", "d"]                   # same check-ins: more completions first, then id
+def test_starter_creatures_are_never_ranked():
+    starters = sum((st(c, 30) for c in ("aqua_buddy", "leaf_friend", "spark_pal", "blaze_heart")), [])
+    assert S._rank_creature_favourites(starters + st("x", 5) + st("y", 5), []) == []              # only 2 community creatures qualify
+    rows = S._rank_creature_favourites(starters + st("x", 5) + st("y", 6) + st("z", 7), [])
+    assert [r["creature_id"] for r in rows] == ["z", "y", "x"]
+
+
+def test_ranking_orders_by_students_then_final_stage_then_id():
+    starts = st("a", 6) + st("b", 6) + st("c", 6) + st("d", 8)
+    done = [("b", "b-s0"), ("b", "b-s1"), ("c", "c-s0"), ("zzz", "q")]                  # completions of unknown creatures are ignored
+    rows = S._rank_creature_favourites(starts, done)
+    assert [r["creature_id"] for r in rows] == ["d", "b", "c", "a"]
+    assert [r["completed"] for r in rows] == [0, 2, 1, 0]
+    tie = S._rank_creature_favourites(st("m", 5) + st("k", 5) + st("p", 5), [])
+    assert [r["creature_id"] for r in tie] == ["k", "m", "p"]                          # full tie: creature id
 
 
 def test_ranking_empty_under_three_and_capped_at_five():
-    assert S._rank_creature_favourites(ev("a", 9) + ev("b", 9), []) == []
-    seven = sum((ev(c, 5 + i) for i, c in enumerate("abcdefg")), [])
+    assert S._rank_creature_favourites(st("a", 9) + st("b", 9), []) == []
+    seven = sum((st(c, 5 + i) for i, c in enumerate("abcdefg")), [])
     rows = S._rank_creature_favourites(seven, [])
     assert len(rows) == 5 and rows[0]["creature_id"] == "g"
-    assert len(S._rank_creature_favourites(ev("a", 9), [], min_creatures=1, limit=50)) == 1
+    assert len(S._rank_creature_favourites(st("a", 9), [], min_creatures=1, limit=50)) == 1
 
 
-# ---------------------------------------------------------------- data windows
+# ---------------------------------------------------------------- data (creature_unlocks)
 NOW = datetime(2026, 12, 10, 12, tzinfo=timezone.utc)
 def ts(days_ago): return (NOW - timedelta(days=days_ago)).isoformat()
 
 
-def seed_windows(db):
-    db.rows["students"] = [{"id": f"s{i}", "active_creatures": {"green": "leaf_friend"}} for i in range(6)]
-    # first event 10 days ago: events cover days 10..0, feeling_logs cover days 30..10 only
-    db.rows["engagement_events"] = (
-        [{"event_type": "creature_checkin", "creature_id": "leaf_friend", "student_id": f"s{i}", "timestamp": ts(5)} for i in range(3)]
-        + [{"event_type": "creature_checkin", "creature_id": "leaf_friend", "student_id": "s0", "timestamp": ts(10)}]
-        + [{"event_type": "creature_complete", "creature_id": "leaf_friend", "student_id": "s1", "timestamp": ts(2)}])
-    db.rows["feeling_logs"] = (
-        [{"student_id": f"s{i}", "feeling_colour": "green", "timestamp": ts(20)} for i in range(6)]      # before events began: counted
-        + [{"student_id": f"s{i}", "feeling_colour": "green", "timestamp": ts(5)} for i in range(6)]     # same days as events: NOT counted
-        + [{"student_id": "s5", "feeling_colour": "green", "timestamp": ts(45)}])                         # outside the 30 days
+def test_collect_uses_unlocks_in_the_last_30_days_by_real_student(db):
+    db.rows["creature_unlocks"] = [
+        {"creature_id": "c1", "real_student_id": "r1", "student_id": "owner", "unlocked_at": ts(3), "completed_at": None},
+        {"creature_id": "c1", "real_student_id": "r1", "student_id": "owner", "unlocked_at": ts(2), "completed_at": ts(1)},   # same child again
+        {"creature_id": "c1", "real_student_id": None, "student_id": "u9", "unlocked_at": ts(5), "completed_at": None},       # family member: falls back to the account
+        {"creature_id": "c1", "real_student_id": "old", "student_id": "owner", "unlocked_at": ts(45), "completed_at": ts(40)}]  # outside the window
+    starts, completions = S._fav_collect(NOW)
+    assert sorted(s for _, s in starts) == ["r1", "r1", "u9"]
+    assert completions == [("c1", "r1")]
 
 
-def test_events_from_their_start_date_fallback_only_before_never_added(db):
-    seed_windows(db)
-    ci, done, start = S._fav_collect(NOW)
-    assert start == ts(10)
-    assert len(ci) == 4 + 6                                                        # 4 events + 6 pre-start logs; the 6 same-day logs are ignored
-    assert sorted(s for _, s in ci).count("s0") == 3                               # 2 event rows + 1 fallback, no duplicate of the event day
-    assert done == [("leaf_friend", "s1")]
-
-
-def test_no_events_yet_uses_feeling_logs_for_the_whole_window(db):
-    seed_windows(db); db.rows["engagement_events"] = []
-    ci, _done, start = S._fav_collect(NOW)
-    assert start is None and len(ci) == 12 and all(c == "leaf_friend" for c, _ in ci)   # 20 and 5 days ago, not the 45-day-old one
-
-
-def test_fallback_uses_the_active_creature_for_that_colour_and_skips_unknowns(db):
-    db.rows["students"] = [{"id": "a", "active_creatures": {"green": "sub-1"}}, {"id": "b", "active_creatures": {}}]
-    db.rows["feeling_logs"] = [{"student_id": "a", "feeling_colour": "green", "timestamp": ts(3)},
-                               {"student_id": "a", "feeling_colour": "blue", "timestamp": ts(3)},
-                               {"student_id": "b", "feeling_colour": "green", "timestamp": ts(3)}]
-    ci, _d, _s = S._fav_collect(NOW)
-    assert ci == [("sub-1", "a")]
-
-
-def test_unreadable_sources_just_mean_no_data(db):
-    db.broken_cols["engagement_events"] = {"event_type"}
-    ci, done, start = S._fav_collect(NOW)
-    assert ci == [] and done == [] and start is None
+def test_unreadable_unlocks_just_mean_no_data(db):
+    db.broken_cols["creature_unlocks"] = {"unlocked_at"}
+    assert S._fav_collect(NOW) == ([], [])
 
 
 # ---------------------------------------------------------------- endpoints
 def rts(days_ago): return (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
+IMG = "https://x.supabase.co/storage/v1/object/public/creature-images/creatures/%s_stage%d_abcd1234.png?v=4"
 
 
-def make_ranked_db(db):
-    db.rows["students"] = [{"id": f"s{i}", "active_creatures": {"green": "leaf_friend", "blue": "aqua_buddy", "red": "blaze_heart", "yellow": "sub-1"}} for i in range(6)]
-    db.rows["feeling_logs"] = [{"student_id": f"s{i}", "feeling_colour": c, "timestamp": rts(3)} for i in range(6) for c in ("green", "blue", "red", "yellow")]
-    db.rows["creature_submissions"] = [{"id": "sub-1", "creature_name": "Petal", "emotion_colour": "yellow",
-                                         "stage1_url": "https://x.supabase.co/storage/v1/object/public/creature-images/creatures/a_stage1_abcd1234.png?v=4"}]
+def make_ranked_db(db, creatures=("sub-1", "sub-2", "sub-3", "sub-4")):
+    db.rows["creature_unlocks"] = [{"creature_id": c, "real_student_id": f"{c}-s{i}", "student_id": "owner", "unlocked_at": rts(3), "completed_at": rts(1) if i == 0 else None}
+                                   for n, c in enumerate(creatures) for i in range(6 + n)]
+    db.rows["creature_unlocks"] += [{"creature_id": "leaf_friend", "real_student_id": f"lf{i}", "student_id": "o", "unlocked_at": rts(2), "completed_at": None} for i in range(40)]
+    db.rows["creature_submissions"] = [{"id": c, "creature_name": f"Name {c}", "emotion_colour": "yellow",
+                                         "stage1_url": IMG % (c, 1), "stage4_url": IMG % (c, 4)} for c in creatures]
 
 
 @pytest.fixture
@@ -295,19 +280,41 @@ def fresh_cache(monkeypatch):
     monkeypatch.setattr(S, "_fav_cache", {"at": None, "data": None})
 
 
-def test_public_endpoint_returns_only_rank_id_name_picture(db, fresh_cache, monkeypatch):
+def test_public_endpoint_payload_and_thumbnail(db, fresh_cache, monkeypatch):
     make_ranked_db(db); as_user(monkeypatch, {"user_id": "u", "role": "student"})
     out = asyncio.run(S.get_creature_favourites(_Req()))["favourites"]
-    assert [r["rank"] for r in out] == [1, 2, 3, 4] and {r["creature_id"] for r in out} == {"leaf_friend", "aqua_buddy", "blaze_heart", "sub-1"}
-    assert {k for r in out for k in r} == {"rank", "creature_id", "name", "colour", "thumb_url", "emoji", "is_default"}
-    petal = next(r for r in out if r["creature_id"] == "sub-1")
-    assert petal["name"] == "Petal" and petal["thumb_url"] and "_thumb" in petal["thumb_url"] and petal["is_default"] is False
-    assert next(r for r in out if r["creature_id"] == "leaf_friend")["emoji"]
-    assert "s0" not in str(out)                                                      # no student ids anywhere
+    assert [r["creature_id"] for r in out] == ["sub-4", "sub-3", "sub-2", "sub-1"] and [r["rank"] for r in out] == [1, 2, 3, 4]
+    assert {k for r in out for k in r} == {"rank", "creature_id", "name", "colour", "thumbnail_url"}     # no counts, no student data
+    for r in out:
+        assert r["thumbnail_url"].endswith(f"{r['creature_id']}_stage4_abcd1234_thumb.png?v=4")           # the fully evolved form's 200px image, cache-version forced
+    assert "leaf_friend" not in str(out) and "-s0" not in str(out)                                      # starters excluded, no student ids
+
+
+def test_thumbnail_url_gets_the_cache_version_even_if_the_stored_url_has_none(db, fresh_cache, monkeypatch):
+    make_ranked_db(db)
+    for c in db.rows["creature_submissions"]: c["stage4_url"] = c["stage4_url"].split("?")[0]
+    as_user(monkeypatch, {"user_id": "u", "role": "student"})
+    out = asyncio.run(S.get_creature_favourites(_Req()))["favourites"]
+    assert all(r["thumbnail_url"].endswith("_stage4_abcd1234_thumb.png?v=4") for r in out)
+
+
+@pytest.mark.parametrize("empty", [None, ""])
+def test_thumbnail_falls_back_to_stage_1_only_when_stage_4_is_empty(db, fresh_cache, monkeypatch, empty):
+    make_ranked_db(db)
+    db.rows["creature_submissions"][0]["stage4_url"] = empty                       # creature sub-1 has no stage 4 picture
+    as_user(monkeypatch, {"user_id": "u", "role": "student"})
+    out = {r["creature_id"]: r["thumbnail_url"] for r in asyncio.run(S.get_creature_favourites(_Req()))["favourites"]}
+    assert out["sub-1"].endswith("sub-1_stage1_abcd1234_thumb.png?v=4")
+    assert all(out[c].endswith(f"{c}_stage4_abcd1234_thumb.png?v=4") for c in ("sub-2", "sub-3", "sub-4"))
 
 
 def test_public_endpoint_empty_when_too_few_qualify(db, fresh_cache, monkeypatch):
-    make_ranked_db(db); db.rows["feeling_logs"] = [l for l in db.rows["feeling_logs"] if l["feeling_colour"] in ("green", "blue")]
+    make_ranked_db(db, creatures=("sub-1", "sub-2")); as_user(monkeypatch, {"user_id": "u", "role": "student"})
+    assert asyncio.run(S.get_creature_favourites(_Req())) == {"favourites": []}
+
+
+def test_deleted_creature_is_skipped_and_can_drop_the_list_below_three(db, fresh_cache, monkeypatch):
+    make_ranked_db(db, creatures=("sub-1", "sub-2", "sub-3")); db.rows["creature_submissions"].pop()
     as_user(monkeypatch, {"user_id": "u", "role": "student"})
     assert asyncio.run(S.get_creature_favourites(_Req())) == {"favourites": []}
 
@@ -334,7 +341,7 @@ def test_public_endpoint_requires_login(db, fresh_cache, monkeypatch):
     assert e.value.status_code == 401
 
 
-def test_admin_top_is_superadmin_only_and_has_counts(db, monkeypatch):
+def test_admin_top_is_superadmin_only_and_matches_the_public_ranking_with_counts(db, monkeypatch):
     make_ranked_db(db)
     for role in ("teacher", "school_admin", "parent"):
         as_user(monkeypatch, {"user_id": "u", "role": role})
@@ -343,6 +350,14 @@ def test_admin_top_is_superadmin_only_and_has_counts(db, monkeypatch):
         assert e.value.status_code == 403
     as_user(monkeypatch, {"user_id": "u", "role": "superadmin"})
     out = asyncio.run(S.admin_top_creatures(_Req()))
-    assert out["window_days"] == 30 and out["public_list_visible"] is True and len(out["rows"]) == 4
+    assert out["window_days"] == 30 and out["public_list_visible"] is True
+    assert [r["creature_id"] for r in out["rows"]] == ["sub-4", "sub-3", "sub-2", "sub-1"]
     r = out["rows"][0]
-    assert r["checkins"] == 6 and r["students"] == 6 and r["rank"] == 1 and "name" in r and "completed" in r
+    assert r["students"] == 9 and r["completed"] == 1 and r["rank"] == 1 and r["name"] == "Name sub-4"
+    assert "checkins" not in r and not any(x["creature_id"] == "leaf_friend" for x in out["rows"])
+
+
+def test_admin_top_shows_creatures_even_when_the_public_list_would_be_hidden(db, monkeypatch):
+    make_ranked_db(db, creatures=("sub-1",)); as_user(monkeypatch, {"user_id": "u", "role": "superadmin"})
+    out = asyncio.run(S.admin_top_creatures(_Req()))
+    assert len(out["rows"]) == 1 and out["public_list_visible"] is False

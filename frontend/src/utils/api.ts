@@ -468,9 +468,7 @@ export interface CreatureFavourite {
   creature_id: string;
   name: string;
   colour: string | null;
-  thumb_url: string | null;
-  emoji: string | null;
-  is_default: boolean;
+  thumbnail_url: string | null;   // 200px _thumb of the fully evolved (stage 4) picture, stage 1 if that is missing (?v= already applied by the server); null falls back to the emoji
 }
 
 export const creaturesApi = {

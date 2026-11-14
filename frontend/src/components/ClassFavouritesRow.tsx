@@ -1,12 +1,15 @@
-// "Class favourite" row at the top of World Creatures: the creatures children use most (rank, picture, name only - no
-// counts). Renders nothing when there is nothing to show; the server already returns an empty list until enough different
-// children have used enough creatures. Community creatures are tappable (the screen jumps to them); the four starter
-// creatures have no card on that screen, so they are shown but not tappable.
+// "Class favourite" row at the top of World Creatures: the community creatures most different children have started (rank,
+// round thumbnail, name only - no counts). Renders nothing when there is nothing to show; the server already returns an empty list
+// until enough different children have started enough creatures. Tapping a creature makes the screen jump to its card.
 import React from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import type { CreatureFavourite } from '../utils/api';
 
+// '#RRGGBB' -> same colour at ~15% opacity (falls back to the colour itself if it is not 6-digit hex)
+const tint = (hex: string) => (/^#[0-9a-fA-F]{6}$/.test(hex) ? hex + '26' : hex);
+
 const COLOURS: Record<string, string> = { green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252' };
+const FALLBACK_EMOJI = '🦕';
 
 interface Props {
   items: CreatureFavourite[];
@@ -23,22 +26,15 @@ export function ClassFavouritesRow({ items, onPress, t }: Props) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {items.map(it => {
           const ring = (it.colour && COLOURS[it.colour]) || '#5C6BC0';
-          const body = (
-            <>
-              <View style={[styles.circle, { borderColor: ring }]}>
-                {it.thumb_url
-                  ? <Image source={{ uri: it.thumb_url }} style={styles.img} resizeMode="contain" />
-                  : <Text style={styles.emoji}>{it.emoji || '🦕'}</Text>}
+          return (
+            <TouchableOpacity key={it.creature_id} style={styles.item} activeOpacity={0.8} onPress={() => onPress(it)} accessibilityRole="button" accessibilityLabel={it.name}>
+              <View style={[styles.circle, { borderColor: ring, backgroundColor: tint(ring) }]}>
+                {it.thumbnail_url
+                  ? <Image source={{ uri: it.thumbnail_url }} style={styles.img} resizeMode="contain" />
+                  : <Text style={styles.emoji}>{FALLBACK_EMOJI}</Text>}
                 <View style={styles.rank}><Text style={styles.rankText}>{it.rank}</Text></View>
               </View>
               <Text style={styles.name} numberOfLines={1}>{it.name}</Text>
-            </>
-          );
-          return it.is_default ? (
-            <View key={it.creature_id} style={styles.item}>{body}</View>
-          ) : (
-            <TouchableOpacity key={it.creature_id} style={styles.item} activeOpacity={0.8} onPress={() => onPress(it)} accessibilityRole="button">
-              {body}
             </TouchableOpacity>
           );
         })}
@@ -53,8 +49,9 @@ const styles = StyleSheet.create({
   ribbonText: { color: 'white', fontSize: 12, fontWeight: '800' },
   row: { paddingHorizontal: 12, gap: 14 },
   item: { alignItems: 'center', width: 72 },
+  // pale tint of the creature's colour behind the picture; the image is shown whole (contain) at a size whose square fits inside the circle, so no drawing is cropped
   circle: { width: 64, height: 64, borderRadius: 32, borderWidth: 3, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
-  img: { width: 52, height: 52 },
+  img: { width: 42, height: 42 },
   emoji: { fontSize: 30 },
   rank: { position: 'absolute', top: -4, left: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' },
   rankText: { color: 'white', fontSize: 11, fontWeight: '800' },
