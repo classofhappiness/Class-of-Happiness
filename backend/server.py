@@ -12943,10 +12943,12 @@ async def send_help_request(request: Request):
     # Parent/family tokens — only for home context
     if context == 'home':
         try:
-            parent_links = supabase.table("parent_links").select("parent_id").eq("student_id", student_id).execute()
+            parent_links = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()   # S12: the column is parent_user_id (parent_id never existed, so this lookup always failed)
             for link in (parent_links.data or []):
-                for tok in await _get_push_tokens_for_user(link["parent_id"]):
-                    tokens_to_notify.append((link["parent_id"], tok))
+                if not link.get("parent_user_id"):
+                    continue
+                for tok in await _get_push_tokens_for_user(link["parent_user_id"]):
+                    tokens_to_notify.append((link["parent_user_id"], tok))
         except Exception as e:
             logger.warning(f"[notify-parent-tokens] parent_links-based token lookup failed: {e}")
 
@@ -13122,9 +13124,9 @@ def _resolve_parent_user_ids_sync(student_id: str) -> set:
     direct Supabase calls can run off the event loop via asyncio.to_thread."""
     parent_user_ids = set()
     try:
-        parent_links = supabase.table("parent_links").select("parent_id,parent_user_id").eq("student_id", student_id).execute()
+        parent_links = supabase.table("parent_links").select("parent_user_id").eq("student_id", student_id).execute()   # S12: parent_id never existed, selecting it made the whole lookup fail
         for link in (parent_links.data or []):
-            uid = link.get("parent_user_id") or link.get("parent_id")
+            uid = link.get("parent_user_id")
             if uid: parent_user_ids.add(uid)
     except Exception as e:
         logger.warning(f"[notify-parents] parent_links lookup failed: {e}")
@@ -13405,16 +13407,49 @@ async def get_alerts(request: Request, limit: int = 100):
         logger.error(f"Get alerts error: {e}")
         return []
 
+def _alert_belongs_to_family_member_sync(user_id: str, student_id: str) -> bool:
+    """Home alerts can be stored against a family_members.id instead of a student id (see get_alerts' alias handling)."""
+    r = supabase.table("family_members").select("id").eq("id", student_id).eq("user_id", user_id).execute()
+    return bool(r.data)
+
+async def _user_may_resolve_alert(user: dict, alert: dict) -> bool:
+    """S12: an alert may be resolved only by someone it was shown to: a superadmin, the owner/school admin of its
+    classroom, the teacher or school admin who may see its student, or a parent linked to that child."""
+    if user.get("role") == "superadmin":
+        return True
+    try:
+        classroom_id = alert.get("classroom_id")
+        if classroom_id and await _is_authorized_for_classroom(user, classroom_id):
+            return True
+        student_id = alert.get("student_id")
+        if student_id:
+            if await _is_authorized_for_student(user, student_id):
+                return True
+            if await asyncio.to_thread(_alert_belongs_to_family_member_sync, user["user_id"], student_id):
+                return True
+    except Exception as e:
+        logger.error(f"[resolve-alert] authorization check failed for alert {alert.get('id')}: {e}")
+        raise HTTPException(status_code=500, detail="Could not check permission for this alert")
+    return False
+
 @api_router.post("/notifications/alerts/{alert_id}/resolve")
 async def resolve_alert(alert_id: str, request: Request):
-    """Mark an alert as resolved."""
+    """Mark an alert as resolved. S12: only for an alert that belongs to the caller (their classroom, their school
+    or their linked child); anything else is 403 and nothing is changed."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
+        found = supabase.table("student_alerts").select("*").eq("id", alert_id).execute()
+        if not found.data:
+            logger.error(f"Resolve alert: no row matched id={alert_id}")
+            raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+        if not await _user_may_resolve_alert(user, found.data[0]):
+            logger.warning(f"[resolve-alert] user={user['user_id']} role={user.get('role')} denied for alert {alert_id}")
+            raise HTTPException(status_code=403, detail="You do not have access to this alert")
         result = supabase.table("student_alerts").update({"resolved": True, "resolved_by": user["user_id"], "resolved_at": datetime.now(timezone.utc).isoformat()}).eq("id", alert_id).execute()
         if not result.data:
-            logger.error(f"Resolve alert: no row matched id={alert_id}")
+            logger.error(f"Resolve alert: update matched no row id={alert_id}")
             raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     except HTTPException:
         raise
