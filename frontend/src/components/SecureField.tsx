@@ -12,7 +12,8 @@
 // on the screen by however many extra pixels the border grew, which reads as a layout glitch
 // rather than a clean focus state.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, TextInputProps, ViewStyle, StyleProp } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, TextInput as RNTextInput, TextInputProps, ViewStyle, StyleProp } from 'react-native';
+import { AppTextInput as TextInput } from './AppTextInput';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface SecureFieldProps extends Omit<TextInputProps, 'secureTextEntry' | 'style'> {
@@ -42,7 +43,7 @@ export function SecureField({
 }: SecureFieldProps) {
   const [visible, setVisible] = useState(false);
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<RNTextInput>(null);
   useEffect(() => {
     if (autoFocusDelay == null) return;
     const id = setTimeout(() => inputRef.current?.focus(), autoFocusDelay);

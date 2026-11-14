@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, Alert, ActivityIndicator, TextInput, Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Animated } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';

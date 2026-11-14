@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
-  TouchableOpacity, RefreshControl, Modal, TextInput, Alert, Switch,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, RefreshControl, Modal, Alert, Switch } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter } from 'expo-router';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { MaterialIcons } from '@expo/vector-icons';

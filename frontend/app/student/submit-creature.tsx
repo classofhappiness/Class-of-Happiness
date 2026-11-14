@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import {
-  View, Text, StyleSheet, TouchableOpacity, Image,
-  TextInput, ScrollView, Alert, ActivityIndicator, Modal
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useApp } from '../../src/context/AppContext';

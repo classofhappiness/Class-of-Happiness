@@ -363,7 +363,7 @@ const defaultTranslations: Translations = {
   access_expires_30_days: "Access expires in 30 days",
 };
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Auth state

@@ -1,6 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Share, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Share, Modal } from 'react-native';
+import { AppTextInput as TextInput } from './AppTextInput';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { teacherApi, parentApi, creaturesApi } from '../utils/api';

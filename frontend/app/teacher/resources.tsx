@@ -1,20 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView, KeyboardAvoidingView,
-  TouchableOpacity,
-  RefreshControl,
-  Modal,
-  TextInput,
-  Alert,
-  Platform,
-  Linking,
-  Image,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, KeyboardAvoidingView, TouchableOpacity, RefreshControl, Modal, Alert, Platform, Linking, Image } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';

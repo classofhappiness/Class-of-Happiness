@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { AppTextInput as TextInput } from './AppTextInput';
 import { PinInput } from './PinInput';
 import { KeyboardSafeView } from './KeyboardSafeView';
 import {

@@ -1,23 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import { 
-  View, 
-  Text, 
-  StyleSheet,
-  ScrollView, 
-  TouchableOpacity,
-  Image,
-  useWindowDimensions,
-  RefreshControl,
-  Alert,
-  ActivityIndicator,
-  Linking,
-  Modal,
-  Share,
-  Platform,
-  Animated,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, useWindowDimensions, RefreshControl, Alert, ActivityIndicator, Linking, Modal, Share, Platform, Animated } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';

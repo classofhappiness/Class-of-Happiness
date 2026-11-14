@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Alert, ActivityIndicator, RefreshControl, Switch, useWindowDimensions, Linking,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, ActivityIndicator, RefreshControl, Switch, useWindowDimensions, Linking, KeyboardAvoidingView, Platform } from 'react-native';
+import { AppTextInput as TextInput } from '../../../src/components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StrategyIcon } from '../../../src/components/StrategyIcon';

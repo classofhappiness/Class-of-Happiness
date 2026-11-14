@@ -1,9 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput, Modal, Linking,
-  Switch, ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, Modal, Linking, Switch, ActivityIndicator } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { WellbeingHintModal, WellbeingResetModal } from '../../src/components/WellbeingLockModals';
 import { getLockStatus, teacherLockScope } from '../../src/utils/wellbeingLock';
 import AsyncStorage from '@react-native-async-storage/async-storage';

@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
-import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
-  TextInput, Alert, KeyboardAvoidingView, Platform, Share, Linking, useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Share, Linking, useWindowDimensions } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { BarChart } from 'react-native-gifted-charts';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';

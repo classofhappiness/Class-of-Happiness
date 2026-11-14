@@ -2,21 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  Modal,
-  TextInput,
-  Alert,
-  Share,
-  Image,
-  ActivityIndicator,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal, Alert, Share, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter, useLocalSearchParams, usePathname } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';

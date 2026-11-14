@@ -1,6 +1,7 @@
 import React, { useState, useLayoutEffect, useEffect } from 'react';
 import { KeyboardSafeView } from '../src/components/KeyboardSafeView';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Platform, Linking, ActivityIndicator } from 'react-native';
+import { AppTextInput as TextInput } from '../src/components/AppTextInput';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TranslatedHeader } from '../src/components/TranslatedHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';

@@ -1,7 +1,8 @@
 // The searchable country list (a "Prefer not to say" row first, then every country in the app language), shared by the picker
 // modal (signup, Settings) and the one-time prompt, which shows it inline so it never opens a second modal on top of itself.
 import React, { useMemo, useState } from 'react';
-import { Text, TouchableOpacity, TextInput, FlatList, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { AppTextInput as TextInput } from './AppTextInput';
 import { MaterialIcons } from '@expo/vector-icons';
 import { countryFlagEmoji } from '../constants/countries';
 import { localizedCountryName, sortedCountries } from '../utils/countryNames';
