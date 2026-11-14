@@ -2487,6 +2487,8 @@
   "country_not_now": "Jetzt nicht",
   "country_save": "Speichern",
   "country_prompt_title": "In welchem Land bist du?",
+  "class_favourites_ribbon": "Klassenliebling",
+  "class_favourites_a11y": "Die Kreaturen, die Kinder in unserer Gemeinschaft am meisten nutzen",
   "country_privacy_note": "Optional. Dein Land wird nur für anonyme Gesamtzahlen verwendet und nie öffentlich oder anderen Nutzern angezeigt.",
   "country_prompt_body": "Optional. Dein Land wird nur für anonyme Gesamtzahlen verwendet und nie öffentlich oder anderen Nutzern angezeigt."
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-11c (superadmin All Users: search box (name or email), "Suspended" badge and a Suspend / Reactivate button per user - hidden for superadmin accounts and for your own account - using POST /admin/users/{id}/suspend and /reactivate) -->
+<!-- COH-PORTAL-VERSION: 2026-11-14 (superadmin Creatures tab: read-only "Top creatures (last 30 days)" table from GET /admin/creatures/top - rank, check-ins, distinct students, students who reached the final stage; older versions below) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-11c (superadmin All Users: search box (name or email), "Suspended" badge and a Suspend / Reactivate button per user - hidden for superadmin accounts and for your own account - using POST /admin/users/{id}/suspend and /reactivate) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11b (creature stage viewer: pending, awaiting-final-approval, approved and featured creatures show all stages with arrows and a 1/4 counter; replaces the single stage-1 thumbnail and the pending "See stages" link) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11 (creature moderation: pending and awaiting-final-approval rows show an AI-check badge - red "AI flagged - check images", amber "AI check failed - review manually", amber "Busy background kept - check it"; nothing for clean/empty) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-10 (resources: COH Entrepreneur programme, Start here order, food/enterprise labels) -->
@@ -6138,7 +6139,45 @@ function creaturesHTML(){
   '<div class="card">'+
     '<h2>✅ Approved Creatures</h2>'+
     '<div id="approvedCreatures"><div class="loading"><div class="spinner"></div></div></div>'+
-  '</div>';
+  '</div>'+
+  ((currentUser&&currentUser.role)==='superadmin' ? '<div class="card">'+
+    '<h2>📈 Top creatures (last 30 days)</h2>'+
+    '<p style="font-size:.72rem;color:var(--soft);margin-bottom:.75rem">Superadmin only. The same ranking children see as "Class favourite", with the numbers. A creature is listed only once at least 5 different students have checked in to it; the in-app row stays hidden until at least 3 creatures qualify.</p>'+
+    '<div id="topCreatures"><div class="loading"><div class="spinner"></div></div></div>'+
+  '</div>' : '');
+}
+
+// Superadmin "Top creatures" table (GET /admin/creatures/top): rank, creature, check-ins, distinct students, students who finished it.
+async function renderTopCreatures(){
+  var el=document.getElementById('topCreatures');
+  if(!el) return;
+  try{
+    var d=await api('/admin/creatures/top');
+    var rows=(d&&d.rows)||[];
+    var since=d&&d.events_since?String(d.events_since).slice(0,10):null;
+    var note='<p style="font-size:.7rem;color:var(--muted);margin-top:.6rem">'+
+      (since?'Check-ins from '+esc(since)+' come from the new event log; the days before use each student\'s current creature for that colour (approximate).':'The event log has no check-ins yet, so every number uses each student\'s current creature for that colour (approximate).')+
+      ' Public row: '+(d&&d.public_list_visible?'visible to students':'hidden (fewer than 3 creatures qualify)')+'.</p>';
+    if(!rows.length){
+      el.innerHTML='<p style="color:var(--muted);font-size:.8rem">No creature has been used by 5 or more different students in the last 30 days yet.</p>'+note;
+      return;
+    }
+    var html='<table style="width:100%;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;color:var(--soft);font-size:.7rem">'+
+      '<th style="padding:.3rem">#</th><th style="padding:.3rem">Creature</th><th style="padding:.3rem">Colour</th>'+
+      '<th style="padding:.3rem;text-align:right">Check-ins</th><th style="padding:.3rem;text-align:right">Students</th><th style="padding:.3rem;text-align:right">Reached final stage</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      html+='<tr style="border-top:1px solid #eee"><td style="padding:.35rem .3rem;font-weight:900">'+r.rank+'</td>'+
+        '<td style="padding:.35rem .3rem;font-weight:800;color:var(--navy)">'+esc(r.name||r.creature_id)+(r.is_default?' <span style="font-size:.65rem;color:var(--muted)">(starter)</span>':'')+'</td>'+
+        '<td style="padding:.35rem .3rem">'+esc(r.colour||'')+'</td>'+
+        '<td style="padding:.35rem .3rem;text-align:right">'+r.checkins+'</td>'+
+        '<td style="padding:.35rem .3rem;text-align:right">'+r.students+'</td>'+
+        '<td style="padding:.35rem .3rem;text-align:right">'+r.completed+'</td></tr>';
+    });
+    el.innerHTML=html+'</tbody></table>'+note;
+  }catch(e){
+    el.innerHTML='<p style="color:var(--muted);font-size:.8rem">Could not load the ranking.</p>';
+    console.error('renderTopCreatures error:',e);
+  }
 }
 
 // Stage viewer for a creature: shows stage1..stage4 (non-empty ones only) with arrows and an "n/N" counter. px = size in pixels,
@@ -6286,6 +6325,7 @@ async function renderCreatures(){
       }
     }
   }catch(e){console.error('renderCreatures error:',e);}
+  if(currentUser&&currentUser.role==='superadmin') renderTopCreatures();
 }
 
 

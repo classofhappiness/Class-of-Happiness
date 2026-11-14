@@ -15,7 +15,8 @@ import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Pressable, A
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { creaturesApi } from '../../src/utils/api';
+import { creaturesApi, CreatureFavourite } from '../../src/utils/api';
+import { ClassFavouritesRow } from '../../src/components/ClassFavouritesRow';
 import { useApp } from '../../src/context/AppContext';
 import { formatShortDate } from '../../src/utils/dateLabel';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
@@ -333,6 +334,27 @@ export default function GlobalCreaturesScreen() {
 
   const studentId = (currentStudent as any)?.student_id || currentStudent?.id;
 
+  // Class favourites: best effort. A failure or an empty list just hides the row (the server returns [] until enough
+  // different children have used enough creatures).
+  const [favourites, setFavourites] = useState<CreatureFavourite[]>([]);
+  useEffect(() => {
+    let alive = true;
+    creaturesApi.getFavourites().then(r => { if (alive) setFavourites(r?.favourites || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const listRef = useRef<FlatList<any>>(null);
+  // Tapping a favourite shows that creature's colour and scrolls to its card (only if it is one this child can see).
+  const jumpToFavourite = (fav: CreatureFavourite) => {
+    const target = creatures.find(c => c.id === fav.creature_id);
+    if (!target) return;
+    setFilter(target.emotion_colour);
+    setTimeout(() => {
+      const list = creatures.filter(c => c.emotion_colour === target.emotion_colour);
+      const idx = list.findIndex(c => c.id === fav.creature_id);
+      if (idx >= 0) { try { listRef.current?.scrollToIndex({ index: idx, animated: true }); } catch {} }
+    }, 50);
+  };
+
   const load = async () => {
     try {
       const data = await creaturesApi.getEligible(studentId);
@@ -433,6 +455,7 @@ export default function GlobalCreaturesScreen() {
     <View style={styles.container}>
       <TranslatedHeader title={t('world_creatures') || 'World Creatures'} showHome />
       <Text style={styles.subtitle}>{t('find_next_creature_subtitle') || 'Find your next creature to work toward'}</Text>
+      <ClassFavouritesRow items={favourites} onPress={jumpToFavourite} t={t} />
       {countriesJoined > 0 && (
         // Real fix Sep 23 (device report): the only expand/collapse cue used to be a plain
         // ▲/▼ TEXT CHARACTER inline at 11px, the same tiny size and purple colour as the
@@ -535,6 +558,8 @@ export default function GlobalCreaturesScreen() {
         <Text style={styles.empty}>{t('no_creatures_available_yet') || 'No creatures available to you yet - be the first to submit one!'} 🦕</Text>
       ) : (
         <FlatList
+          ref={listRef}
+          onScrollToIndexFailed={() => { try { listRef.current?.scrollToOffset({ offset: 0, animated: true }); } catch {} }}
           data={filtered}
           keyExtractor={item => item.id}
           numColumns={gridColumns}

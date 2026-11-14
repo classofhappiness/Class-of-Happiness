@@ -463,7 +463,21 @@ export const teacherApi = {
 };
 
 // Real addition Aug 16: creature approval workflow, shared by teacher + parent screens.
+export interface CreatureFavourite {
+  rank: number;
+  creature_id: string;
+  name: string;
+  colour: string | null;
+  thumb_url: string | null;
+  emoji: string | null;
+  is_default: boolean;
+}
+
 export const creaturesApi = {
+  // Class favourites: rank/id/name/picture only (never counts); an empty list means "show nothing".
+  getFavourites: (): Promise<{ favourites: CreatureFavourite[] }> =>
+    apiRequest('/creatures/favourites'),
+
   getPending: (): Promise<any[]> =>
     apiRequest('/creatures/pending'),
 

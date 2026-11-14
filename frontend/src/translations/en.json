@@ -2341,6 +2341,8 @@
   "country_not_now": "Not now",
   "country_save": "Save",
   "country_prompt_title": "Where are you based?",
+  "class_favourites_ribbon": "Class favourite",
+  "class_favourites_a11y": "Creatures children in our community use most",
   "country_privacy_note": "Optional. Your country is used only for anonymous totals and is never shown publicly or to other users.",
   "country_prompt_body": "Optional. Your country is used only for anonymous totals and is never shown publicly or to other users."
 }

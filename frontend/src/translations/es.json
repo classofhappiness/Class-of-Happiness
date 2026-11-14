@@ -2478,6 +2478,8 @@
   "country_not_now": "Ahora no",
   "country_save": "Guardar",
   "country_prompt_title": "¿Dónde vives?",
+  "class_favourites_ribbon": "Favorita de la clase",
+  "class_favourites_a11y": "Las criaturas que más usan los niños de nuestra comunidad",
   "country_privacy_note": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios.",
   "country_prompt_body": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios."
 }

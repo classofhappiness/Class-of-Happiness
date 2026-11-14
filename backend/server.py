@@ -22688,6 +22688,159 @@ def _log_creature_stage(student_id: str, creature_id: str, new_stage: int, final
     if new_stage >= final_stage:
         _log_creature_event(student_id, "creature_complete", creature_id, colour=colour, stage=new_stage)
 
+# ================== CLASS FAVOURITES (top creatures) ==================
+# GET /creatures/favourites (any signed-in user): the 3-5 most-used creatures of the last 30 days - rank, id, name,
+# picture only, never counts. A creature is ranked only if >= FAV_MIN_STUDENTS DISTINCT students checked in to it, and
+# fewer than FAV_MIN_CREATURES qualifying creatures means an empty list, so a handful of children can never be picked
+# out. GET /admin/creatures/top (superadmin) returns the same ranking with counts for the portal.
+# Data: engagement_events 'creature_checkin' rows from the day the first one was logged; for the days before that,
+# feeling_logs attributed through each student's CURRENT active creature for that colour. The two windows are disjoint
+# ([cutoff, start) and [start, now]) so a check-in is never counted twice. Ties: more distinct students reaching the final
+# stage (creature_complete events / creature_unlocks.completed_at in the same two windows), then creature id.
+FAV_WINDOW_DAYS = 30
+FAV_MIN_STUDENTS = 5
+FAV_MIN_CREATURES = 3
+FAV_MAX_CREATURES = 5
+FAV_CACHE_SECONDS = 3600
+_fav_cache: dict = {"at": None, "data": None}
+
+def _rank_creature_favourites(checkins: list, completions: list, min_creatures: int = FAV_MIN_CREATURES, limit: int = FAV_MAX_CREATURES) -> list:
+    """checkins/completions: [(creature_id, student_id)] already restricted to the window. Returns
+    [{creature_id, checkins, students, completed}] best first, only creatures with >= FAV_MIN_STUDENTS distinct students,
+    capped at FAV_MAX_CREATURES, and [] when fewer than FAV_MIN_CREATURES qualify."""
+    per: dict = {}
+    for cid, sid in checkins:
+        if not cid or not sid:
+            continue
+        e = per.setdefault(cid, {"checkins": 0, "students": set(), "done": set()})
+        e["checkins"] += 1
+        e["students"].add(sid)
+    for cid, sid in completions:
+        if cid in per and sid:
+            per[cid]["done"].add(sid)
+    qualified = [{"creature_id": cid, "checkins": e["checkins"], "students": len(e["students"]), "completed": len(e["done"])}
+                 for cid, e in per.items() if len(e["students"]) >= FAV_MIN_STUDENTS]
+    qualified.sort(key=lambda r: (-r["checkins"], -r["completed"], r["creature_id"]))
+    if len(qualified) < min_creatures:
+        return []
+    return qualified[:limit]
+
+def _fav_collect(now: datetime) -> tuple:
+    """(checkins, completions, events_start_iso_or_None) for the last FAV_WINDOW_DAYS."""
+    cutoff = (now - timedelta(days=FAV_WINDOW_DAYS)).isoformat()
+    checkins, completions = [], []
+    start = None
+    try:
+        first = supabase.table("engagement_events").select("timestamp").eq("event_type", "creature_checkin").order("timestamp").limit(1).execute().data or []
+        start = first[0]["timestamp"] if first else None
+    except Exception as e:
+        logger.warning(f"[favourites] events start lookup failed: {e}")
+    window_start = max(start, cutoff) if start else None            # ISO strings compare correctly
+    if window_start:
+        try:
+            ev = _fetch_all_paginated("engagement_events", "creature_id,student_id,event_type",
+                                      lambda q: q.in_("event_type", ["creature_checkin", "creature_complete"]).gte("timestamp", window_start))
+            for r in ev:
+                (checkins if r.get("event_type") == "creature_checkin" else completions).append((r.get("creature_id"), r.get("student_id")))
+        except Exception as e:
+            logger.warning(f"[favourites] events read failed: {e}")
+    fb_end = window_start if window_start else now.isoformat()      # earlier days: before the first event (or the whole window)
+    if cutoff < fb_end:
+        try:
+            logs = _fetch_all_paginated("feeling_logs", "student_id,feeling_colour",
+                                        lambda q: q.gte("timestamp", cutoff).lt("timestamp", fb_end))
+            logs = [l for l in logs if l.get("student_id") and l.get("feeling_colour")]
+            ids = sorted({l["student_id"] for l in logs})
+            active = {}
+            for i in range(0, len(ids), 200):
+                for st in supabase.table("students").select("id,active_creatures").in_("id", ids[i:i + 200]).execute().data or []:
+                    active[st["id"]] = st.get("active_creatures") or {}
+            for l in logs:
+                cid = (active.get(l["student_id"]) or {}).get(l["feeling_colour"])
+                if cid:
+                    checkins.append((cid, l["student_id"]))
+        except Exception as e:
+            logger.warning(f"[favourites] feeling_logs fallback failed: {e}")
+        try:
+            un = _fetch_all_paginated("creature_unlocks", "creature_id,real_student_id",
+                                      lambda q: q.gte("completed_at", cutoff).lt("completed_at", fb_end))
+            completions.extend((u.get("creature_id"), u.get("real_student_id")) for u in un)
+        except Exception as e:
+            logger.warning(f"[favourites] completions fallback failed: {e}")
+    return checkins, completions, start
+
+def _fav_describe(ranked: list) -> list:
+    """Adds name/colour/thumb/emoji and rank to ranked rows (internal fields kept: callers strip them)."""
+    comm_ids = [r["creature_id"] for r in ranked if r["creature_id"] not in DEFAULT_CREATURE_IDS]
+    comm = {}
+    if comm_ids:
+        try:
+            for c in supabase.table("creature_submissions").select("id,creature_name,emotion_colour,stage1_url").in_("id", comm_ids).execute().data or []:
+                comm[c["id"]] = c
+        except Exception as e:
+            logger.warning(f"[favourites] creature lookup failed: {e}")
+    out = []
+    for r in ranked:
+        cid = r["creature_id"]
+        d = dict(r)
+        if cid in DEFAULT_CREATURE_IDS:
+            base = next((c for c in CREATURES if c["id"] == cid), {})
+            d.update(name=base.get("name", cid), colour=base.get("feeling_colour"), thumb_url=None,
+                     emoji=(base.get("emoji_stages") or [None])[0], is_default=True)
+        else:
+            c = comm.get(cid)
+            if not c:
+                continue                                              # deleted/unknown creature: skip it
+            d.update(name=c.get("creature_name"), colour=c.get("emotion_colour"), thumb_url=_thumb_url(c.get("stage1_url")),
+                     emoji=None, is_default=False)
+        out.append(d)
+    return out
+
+def _compute_creature_favourites(now: Optional[datetime] = None) -> list:
+    now = now or datetime.now(timezone.utc)
+    checkins, completions, _start = _fav_collect(now)
+    rows = _fav_describe(_rank_creature_favourites(checkins, completions))
+    if len(rows) < FAV_MIN_CREATURES:
+        return []
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    return rows
+
+@api_router.get("/creatures/favourites")
+async def get_creature_favourites(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    at, data = _fav_cache["at"], _fav_cache["data"]
+    if at is None or time.monotonic() - at > FAV_CACHE_SECONDS or data is None:
+        try:
+            data = await asyncio.to_thread(_compute_creature_favourites)
+        except Exception as e:
+            logger.warning(f"[favourites] compute failed: {e}")
+            return {"favourites": []}                                 # a failure is never cached
+        _fav_cache["at"], _fav_cache["data"] = time.monotonic(), data
+    # public shape: rank, id, name, colour, picture - no counts, no student data
+    return {"favourites": [{"rank": r["rank"], "creature_id": r["creature_id"], "name": r["name"], "colour": r["colour"],
+                            "thumb_url": r["thumb_url"], "emoji": r["emoji"], "is_default": r["is_default"]} for r in data]}
+
+@api_router.get("/admin/creatures/top")
+async def admin_top_creatures(request: Request):
+    """Superadmin only: the same ranking with counts (30-day check-ins, distinct students, students reaching the final
+    stage), always computed fresh, and the data sources used. Not cached; the public list's 3-creature minimum does not apply
+    here (the 5-distinct-students rule still does)."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin only")
+    now = datetime.now(timezone.utc)
+    checkins, completions, start = await asyncio.to_thread(_fav_collect, now)
+    # the admin view shows every creature that passes the 5-distinct-students rule, even below the public 3-creature minimum
+    ranked = _rank_creature_favourites(checkins, completions, min_creatures=1, limit=50)
+    rows = await asyncio.to_thread(_fav_describe, ranked)
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    return {"window_days": FAV_WINDOW_DAYS, "events_since": start, "rows": rows, "public_list_visible": len(rows) >= FAV_MIN_CREATURES}
+
+
 # ================== ENGAGEMENT ANALYTICS ==================
 @api_router.post("/analytics/log-event")
 async def log_engagement_event(event: LogEngagementEventRequest, request: Request):

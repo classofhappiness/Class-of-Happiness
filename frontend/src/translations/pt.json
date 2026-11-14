@@ -2478,6 +2478,8 @@
   "country_not_now": "Agora não",
   "country_save": "Guardar",
   "country_prompt_title": "Em que país te encontras?",
+  "class_favourites_ribbon": "Favorito da turma",
+  "class_favourites_a11y": "Criaturas que as crianças da nossa comunidade mais usam",
   "country_privacy_note": "Opcional. O teu país é usado apenas para totais anónimos e nunca é mostrado publicamente nem a outros utilizadores.",
   "country_prompt_body": "Opcional. O teu país é usado apenas para totais anónimos e nunca é mostrado publicamente nem a outros utilizadores."
 }

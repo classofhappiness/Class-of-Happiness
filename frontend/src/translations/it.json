@@ -2487,6 +2487,8 @@
   "country_not_now": "Non ora",
   "country_save": "Salva",
   "country_prompt_title": "In che paese ti trovi?",
+  "class_favourites_ribbon": "Preferita della classe",
+  "class_favourites_a11y": "Le creature che i bambini della nostra comunità usano di più",
   "country_privacy_note": "Facoltativo. Il tuo paese viene usato solo per totali anonimi e non viene mai mostrato pubblicamente né ad altri utenti.",
   "country_prompt_body": "Facoltativo. Il tuo paese viene usato solo per totali anonimi e non viene mai mostrato pubblicamente né ad altri utenti."
 }
