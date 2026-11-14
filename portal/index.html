@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-14 (superadmin Creatures tab: read-only "Top creatures (last 30 days)" table from GET /admin/creatures/top - community creatures ranked by distinct students who started them, plus students who reached the final stage; older versions below) -->
+<!-- COH-PORTAL-VERSION: 2026-11-14b (superadmin Creatures tab: creature moderation viewer - large viewer with all four stages on a tint of the emotion colour, zoom, keyboard arrows and Escape, an info panel (colour, country, scope, submitted by, time, status, AI check in plain words), in-browser image checks (pixel size and the 1024x1024 / art at most 80 percent rule), Approve and Reject with a named confirmation; bigger card thumbnail with compact info on the pending and awaiting-final-approval cards; the same viewer on Approved Creatures, where "N uses" now reads "Finished by N"; user text escaped; older versions below) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-14 (superadmin Creatures tab: read-only "Top creatures (last 30 days)" table from GET /admin/creatures/top - community creatures ranked by distinct students who started them, plus students who reached the final stage; older versions below) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11c (superadmin All Users: search box (name or email), "Suspended" badge and a Suspend / Reactivate button per user - hidden for superadmin accounts and for your own account - using POST /admin/users/{id}/suspend and /reactivate) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11b (creature stage viewer: pending, awaiting-final-approval, approved and featured creatures show all stages with arrows and a 1/4 counter; replaces the single stage-1 thumbnail and the pending "See stages" link) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11 (creature moderation: pending and awaiting-final-approval rows show an AI-check badge - red "AI flagged - check images", amber "AI check failed - review manually", amber "Busy background kept - check it"; nothing for clean/empty) -->
@@ -6179,16 +6180,23 @@ async function renderTopCreatures(){
 // Stage viewer for a creature: shows stage1..stage4 (non-empty ones only) with arrows and an "n/N" counter. px = size in pixels,
 // or null for a fluid square (fills its container). Arrow clicks stop propagation so they never trigger a surrounding row/card
 // action. With a single stage there are no arrows or counter. c can be any object carrying stage1_url..stage4_url.
-function makeStageViewer(c, px){
+function makeStageViewer(c, px, onOpen, tint){
   var stages=[c.stage1_url,c.stage2_url,c.stage3_url,c.stage4_url].filter(Boolean);
   var idx=0;
   var wrap=document.createElement('div');
-  wrap.style.cssText=px?('position:relative;flex-shrink:0;width:'+px+'px;height:'+px+'px;border-radius:8px;overflow:hidden;background:#eee')
-                       :'position:relative;width:100%;aspect-ratio:1;background:#f5f5f5';
+  var bg=tint||(px?'#eee':'#f5f5f5');
+  wrap.style.cssText=px?('position:relative;flex-shrink:0;width:'+px+'px;height:'+px+'px;border-radius:8px;overflow:hidden;background:'+bg)
+                       :('position:relative;width:100%;aspect-ratio:1;background:'+bg);
   var img=document.createElement('img');
   img.src=stages[0]||'';
-  img.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+  // a tint means a moderation card: show the whole picture (never cropped) and open the large viewer on click
+  img.style.cssText='width:100%;height:100%;object-fit:'+(tint?'contain':'cover')+';display:block';
   wrap.appendChild(img);
+  if(onOpen){
+    img.style.cursor='zoom-in';
+    wrap.title='Click to open the large viewer';
+    wrap.onclick=function(){onOpen();};
+  }
   if(stages.length>1){
     var small=!!px && px<=48;
     var label=document.createElement('div');
@@ -6220,12 +6228,316 @@ function makeStageViewer(c, px){
 // run; review = the auto-fit kept a busy photo background as it is. Nothing is shown for clean / empty.
 function aiFlagBadge(flag){
   var cfg={
-    flagged:['#FFEBEE','#C62828','AI flagged - check images'],
-    error:['#FFF3E0','#E65100','AI check failed - review manually'],
-    review:['#FFF3E0','#E65100','Busy background kept - check it']
+    flagged:['#FFEBEE','#C62828','AI flagged: adult, violent or racy content, check images'],
+    error:['#FFF3E0','#E65100','AI check failed, review manually'],
+    review:['#FFF3E0','#E65100','Busy background kept: the clean-up could not remove the background, check the images']
   }[flag];
   if(!cfg) return '';
-  return '<div style="display:inline-block;margin:.15rem 0 .25rem;padding:.15rem .5rem;border-radius:6px;background:'+cfg[0]+';color:'+cfg[1]+';font-size:.68rem;font-weight:800">⚠️ '+cfg[2]+'</div>';
+  return '<div style="display:inline-block;margin:.15rem 0 .25rem;padding:.15rem .5rem;border-radius:6px;background:'+cfg[0]+';color:'+cfg[1]+';font-size:.68rem;font-weight:800">'+cfg[2]+'</div>';
+}
+
+// ---- Creature moderation viewer (superadmin Creatures tab) ----------------------------------------------------------------
+// One large viewer used by the pending, awaiting-final-approval and approved lists. It only uses fields the lists already
+// return: it never shows real_student_name, and every piece of user text goes through esc() / textContent.
+var CR_EMO={green:'#4CAF73',blue:'#4A90D9',yellow:'#FFC107',red:'#E05252'};
+function crTint(colour){ return (CR_EMO[colour]||'#9E9E9E')+'26'; }
+function crScopeLabel(s){
+  s=s||'global';
+  return {classroom:'Classroom only',school:'Whole school',family:'Family only',global:'Global (every school)'}[s]||String(s);
+}
+function crCountry(code){
+  if(!code) return 'Not given';
+  var c=String(code).trim();
+  if(/^[A-Za-z]{2}$/.test(c)){
+    var up=c.toUpperCase(), flag='', name=up;
+    try{ flag=String.fromCodePoint(0x1F1E6+up.charCodeAt(0)-65, 0x1F1E6+up.charCodeAt(1)-65); }catch(e){}
+    try{ name=new Intl.DisplayNames(['en'],{type:'region'}).of(up)||up; }catch(e){}
+    return (flag?flag+' ':'')+name;
+  }
+  return c;
+}
+function crWhen(iso){
+  if(!iso) return '';
+  var d=new Date(iso);
+  if(isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function crRoleLabel(r){ return ({teacher:'Teacher',parent:'Parent',school_admin:'School admin',superadmin:'Superadmin',family:'Family'})[r]||''; }
+function crSubmittedBy(c){
+  var n=c.student_name||'';
+  var r=crRoleLabel(c.submitted_by_role);          // only the pending list returns a role; the other lists leave it blank
+  return (n?n:'Not given')+(r?' ('+r+')':'');
+}
+function crStatusText(c,kind){
+  if(kind==='pending') return 'Pending review';
+  if(kind==='awaiting') return 'Approved, waiting for final approval';
+  return 'Approved';
+}
+// [background, colour, text] - plain words for the AI image check
+function crAiPlain(flag){
+  return {
+    flagged:['#FFEBEE','#C62828','AI flagged: adult, violent or racy content, check images'],
+    error:['#FFF3E0','#E65100','AI check failed, review manually'],
+    review:['#FFF3E0','#E65100','Busy background kept: the clean-up could not remove the background, check the images'],
+    clean:['#E8F5E9','#2E7D32','AI check: clean']
+  }[flag]||['#F0F0F0','#666','AI check: nothing recorded'];
+}
+function crAiLine(flag,small){
+  var a=crAiPlain(flag);
+  return '<div style="display:inline-block;margin:.15rem 0;padding:.15rem .5rem;border-radius:6px;background:'+a[0]+';color:'+a[1]+';font-size:'+(small?'.68rem':'.78rem')+';font-weight:800">'+''+esc(a[2])+'</div>';
+}
+function crStages(c){
+  return [c.stage1_url,c.stage2_url,c.stage3_url,c.stage4_url].filter(Boolean);
+}
+// Compact information for a card (all text escaped).
+function crCompactHTML(c,kind){
+  var colour=c.emotion_colour||'';
+  var dot='<span style="display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:'+(CR_EMO[colour]||'#9E9E9E')+';margin-right:.3rem;vertical-align:middle"></span>';
+  var when=kind==='approved'?(c.approved_at?'Approved '+crWhen(c.approved_at):''):(c.created_at?'Submitted '+crWhen(c.created_at):'');
+  var h='<div style="font-weight:900;color:var(--navy);font-size:.88rem">'+esc(c.creature_name||'')+'</div>'+
+    '<div style="font-size:.72rem;color:var(--soft);margin:.15rem 0">'+dot+esc(colour)+' · '+esc(crCountry(c.country))+' · '+esc(crScopeLabel(c.visibility_scope))+'</div>'+
+    '<div style="font-size:.7rem;color:var(--soft)">By '+esc(crSubmittedBy(c))+(c.school_name?' · '+esc(c.school_name):'')+'</div>'+
+    (when?'<div style="font-size:.68rem;color:var(--muted)">'+esc(when)+'</div>':'')+
+    '<div style="font-size:.68rem;color:var(--muted)">'+esc(crStatusText(c,kind))+'</div>'+
+    crAiLine(c.ai_moderation_flag,true);
+  if(c.description) h+='<div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">'+esc(c.description)+'</div>';
+  return h;
+}
+// Reads one stage image in the browser: natural pixel size and the size of the non-transparent art. Resolves
+// {w,h,artW,artH,opaque,pixels:true|false}; pixels:false means the browser would not let the page read the picture's pixels.
+function crReadImage(url){
+  return new Promise(function(resolve){
+    var im=new Image();
+    im.crossOrigin='anonymous';
+    im.onload=function(){
+      var w=im.naturalWidth,h=im.naturalHeight;
+      try{
+        if(w*h>16777216) throw new Error('too large to scan');
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        var cx=cv.getContext('2d'); cx.drawImage(im,0,0);
+        var d=cx.getImageData(0,0,w,h).data;
+        var minX=w,minY=h,maxX=-1,maxY=-1,transparent=false;
+        for(var y=0;y<h;y++){
+          for(var x=0;x<w;x++){
+            var a=d[(y*w+x)*4+3];
+            if(a<250) transparent=true;
+            if(a>8){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+          }
+        }
+        resolve({w:w,h:h,artW:maxX<0?0:maxX-minX+1,artH:maxY<0?0:maxY-minY+1,opaque:!transparent,pixels:true});
+      }catch(e){ resolve({w:w,h:h,pixels:false}); }
+    };
+    im.onerror=function(){
+      var p=new Image();                       // retry without CORS just for the pixel size
+      p.onload=function(){ resolve({w:p.naturalWidth,h:p.naturalHeight,pixels:false}); };
+      p.onerror=function(){ resolve({error:true}); };
+      p.src=url;
+    };
+    im.src=url;
+  });
+}
+// -> {ok:true|false|null, text}
+function crJudge(r){
+  if(!r||r.error) return {ok:null,text:'Could not load the picture'};
+  var size=r.w+'×'+r.h;
+  var sizeOk=(r.w===1024&&r.h===1024);
+  if(!r.pixels) return {ok:sizeOk?null:false,text:size+(sizeOk?' OK size; art size could not be read by the browser':' FAIL: not 1024×1024')};
+  var limit=Math.floor(1024*0.8)+1;            // the server allows one pixel of rounding
+  var artOk=!r.opaque&&r.artW<=limit&&r.artH<=limit;
+  var art=r.opaque?'no transparent background (the whole picture is the art)':'art '+r.artW+'×'+r.artH+' ('+Math.round(100*Math.max(r.artW,r.artH)/Math.max(r.w,r.h))+'% of the picture)';
+  return {ok:sizeOk&&artOk,text:size+(sizeOk?' OK':' FAIL')+' · '+art+(artOk?' OK':' FAIL')};
+}
+
+var crViewerState=null;
+function closeCreatureViewer(){
+  if(!crViewerState) return;
+  document.removeEventListener('keydown',crViewerState.onKey,true);
+  if(crViewerState.root&&crViewerState.root.parentNode) crViewerState.root.parentNode.removeChild(crViewerState.root);
+  document.body.style.overflow=crViewerState.prevOverflow;
+  var back=crViewerState.returnFocus;
+  crViewerState=null;
+  if(back&&back.focus) try{back.focus();}catch(e){}
+}
+// opts: {kind:'pending'|'awaiting'|'approved', scopeValue:<initial scope for awaiting>, onApprove(scope), onReject()}
+function openCreatureViewer(c,opts){
+  opts=opts||{};
+  closeCreatureViewer();
+  var kind=opts.kind||'approved';
+  var stages=crStages(c);
+  var tint=crTint(c.emotion_colour);
+  var sel=0, zoomEl=null;
+  var root=document.createElement('div');
+  root.style.cssText='position:fixed;inset:0;background:rgba(15,20,40,.62);z-index:9000;display:flex;align-items:center;justify-content:center;padding:2vh 2vw';
+  root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); root.setAttribute('aria-label','Creature viewer');
+  root.onclick=function(e){ if(e.target===root) closeCreatureViewer(); };
+  var panel=document.createElement('div');
+  panel.style.cssText='background:white;border-radius:14px;width:100%;max-width:1180px;max-height:96vh;overflow:auto;padding:1rem 1.1rem 1.1rem;box-shadow:0 10px 40px rgba(0,0,0,.35)';
+  var head=document.createElement('div');
+  head.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:.75rem;margin-bottom:.75rem';
+  var title=document.createElement('div');
+  title.style.cssText='font-weight:900;color:var(--navy);font-size:1.1rem';
+  title.textContent=c.creature_name||'(no name)';
+  var closeBtn=document.createElement('button');
+  closeBtn.type='button'; closeBtn.textContent='Close'; closeBtn.setAttribute('aria-label','Close viewer');
+  closeBtn.style.cssText='padding:.35rem .8rem;border:none;border-radius:8px;background:#eee;font-weight:800;cursor:pointer;font-size:.8rem';
+  closeBtn.onclick=closeCreatureViewer;
+  head.appendChild(title); head.appendChild(closeBtn);
+  panel.appendChild(head);
+
+  var body=document.createElement('div');
+  body.style.cssText='display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start';
+  var left=document.createElement('div');
+  left.style.cssText='flex:3 1 520px;min-width:0';
+  var grid=document.createElement('div');
+  grid.style.cssText='display:flex;flex-wrap:wrap;gap:.75rem';
+  var tiles=[], checkEls=[], reads=[];
+  var summaryEl=document.createElement('div');
+  summaryEl.style.cssText='margin-top:.6rem;font-size:.78rem;font-weight:800';
+  summaryEl.textContent=stages.length?'Checking the pictures…':'This creature has no pictures.';
+
+  function paintSel(){
+    tiles.forEach(function(t,i){ t.style.outline=(i===sel)?'3px solid '+(CR_EMO[c.emotion_colour]||'#5C6BC0'):'3px solid transparent'; });
+  }
+  function openZoom(i){
+    sel=i; paintSel();
+    if(!zoomEl){
+      zoomEl=document.createElement('div');
+      zoomEl.style.cssText='position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(15,20,40,.82);cursor:zoom-out;padding:2vh 2vw';
+      zoomEl.onclick=function(){ closeZoom(); };
+      root.appendChild(zoomEl);
+    }
+    zoomEl.innerHTML='';
+    var box=document.createElement('div');
+    box.style.cssText='background:'+tint+';border-radius:12px;padding:1rem;max-width:92vw;max-height:92vh;display:flex;flex-direction:column;align-items:center;gap:.4rem;background-color:#fff;background-image:linear-gradient('+tint+','+tint+')';
+    var im=document.createElement('img');
+    im.src=stages[i]; im.alt='Stage '+(i+1);
+    im.style.cssText='max-width:88vw;max-height:80vh;object-fit:contain;display:block';
+    var cap=document.createElement('div');
+    cap.style.cssText='font-size:.8rem;font-weight:800;color:#333';
+    cap.textContent='Stage '+(i+1)+' of '+stages.length+'  ·  ← → to change, Esc or click to close';
+    box.appendChild(im); box.appendChild(cap);
+    zoomEl.appendChild(box);
+  }
+  function closeZoom(){ if(zoomEl&&zoomEl.parentNode) zoomEl.parentNode.removeChild(zoomEl); zoomEl=null; }
+  stages.forEach(function(u,i){
+    var cell=document.createElement('div');
+    cell.style.cssText='flex:1 1 220px;min-width:220px;max-width:330px';
+    var tile=document.createElement('div');
+    tile.style.cssText='aspect-ratio:1;border-radius:12px;background:'+tint+';display:flex;align-items:center;justify-content:center;cursor:zoom-in;overflow:hidden;outline:3px solid transparent;outline-offset:2px';
+    var im=document.createElement('img');
+    im.src=u; im.alt='Stage '+(i+1);
+    im.style.cssText='width:100%;height:100%;object-fit:contain;display:block';
+    tile.appendChild(im);
+    tile.onclick=function(){ openZoom(i); };
+    var cap=document.createElement('div');
+    cap.style.cssText='font-size:.74rem;font-weight:800;color:var(--navy);margin-top:.3rem';
+    cap.textContent='Stage '+(i+1);
+    var chk=document.createElement('div');
+    chk.style.cssText='font-size:.68rem;color:var(--muted);line-height:1.35';
+    chk.textContent='Checking…';
+    cell.appendChild(tile); cell.appendChild(cap); cell.appendChild(chk);
+    grid.appendChild(cell);
+    tiles.push(tile); checkEls.push(chk);
+    reads.push(crReadImage(u).then(function(r){
+      var j=crJudge(r);
+      chk.textContent=j.text;
+      chk.style.color=j.ok===true?'#2E7D32':(j.ok===false?'#C62828':'#E65100');
+      return j;
+    }));
+  });
+  left.appendChild(grid);
+  left.appendChild(summaryEl);
+  Promise.all(reads).then(function(js){
+    if(!crViewerState||crViewerState.root!==root) return;
+    var bad=js.filter(function(j){return j.ok===false;}).length, unk=js.filter(function(j){return j.ok===null;}).length;
+    if(!js.length) return;
+    if(bad){ summaryEl.textContent=bad+' of '+js.length+' pictures do not follow the 1024×1024, art-at-most-80% rule.'; summaryEl.style.color='#C62828'; }
+    else if(unk){ summaryEl.textContent='Some checks could not be read by the browser (see each stage).'; summaryEl.style.color='#E65100'; }
+    else { summaryEl.textContent='All pictures follow the 1024×1024, art-at-most-80% rule.'; summaryEl.style.color='#2E7D32'; }
+  });
+
+  var info=document.createElement('div');
+  info.style.cssText='flex:1 1 260px;min-width:240px;background:'+tint+';border-radius:12px;padding:.85rem .95rem';
+  var rows=[
+    ['Name',esc(c.creature_name||'')],
+    ['Emotion colour','<span style="display:inline-block;width:.7rem;height:.7rem;border-radius:50%;background:'+(CR_EMO[c.emotion_colour]||'#9E9E9E')+';margin-right:.35rem;vertical-align:middle"></span>'+esc(c.emotion_colour||'')],
+    ['Country',esc(crCountry(c.country))],
+    ['Scope',esc(crScopeLabel(c.visibility_scope))],
+    ['Submitted by',esc(crSubmittedBy(c))+(c.school_name?'<br><span style="color:var(--soft)">'+esc(c.school_name)+'</span>':'')],
+    [kind==='approved'?'Approved':'Submitted',esc(kind==='approved'?crWhen(c.approved_at):crWhen(c.created_at))||'Not recorded'],
+    ['Status',esc(crStatusText(c,kind))],
+    ['AI check',crAiLine(c.ai_moderation_flag,false)],
+    ['Description',c.description?'<span style="white-space:pre-wrap">'+esc(c.description)+'</span>':'<span style="color:var(--muted)">None</span>']
+  ];
+  if(kind==='approved') rows.push(['Finished by',esc(String(c.global_uses||0))+' '+((c.global_uses||0)===1?'child':'children')+' (reached the final stage)']);
+  info.innerHTML=rows.map(function(r){
+    return '<div style="margin-bottom:.55rem"><div style="font-size:.64rem;font-weight:800;color:var(--soft);text-transform:uppercase;letter-spacing:.03em">'+r[0]+'</div><div style="font-size:.84rem;color:#222">'+r[1]+'</div></div>';
+  }).join('');
+
+  var scopeSel=null;
+  if(kind==='awaiting'){
+    var sw=document.createElement('div'); sw.style.cssText='margin-top:.3rem';
+    var sl=document.createElement('div'); sl.style.cssText='font-size:.64rem;font-weight:800;color:var(--soft);text-transform:uppercase;margin-bottom:.2rem'; sl.textContent='Approve for';
+    scopeSel=document.createElement('select');
+    scopeSel.style.cssText='font-size:.8rem;padding:.3rem .45rem;border-radius:6px;border:1.5px solid rgba(0,0,0,.15)';
+    [['classroom','Classroom only'],['school','Whole school'],['global','Global (every school)']].forEach(function(o){
+      var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1];
+      if(o[0]===(opts.scopeValue||'school')) op.selected=true;
+      scopeSel.appendChild(op);
+    });
+    sw.appendChild(sl); sw.appendChild(scopeSel); info.appendChild(sw);
+  }
+  if(kind!=='approved'){
+    var acts=document.createElement('div');
+    acts.style.cssText='display:flex;gap:.6rem;margin-top:.9rem;flex-wrap:wrap';
+    var ok=document.createElement('button'); ok.type='button'; ok.textContent='Approve';
+    ok.style.cssText='padding:.5rem 1.1rem;background:#4CAF73;color:white;border:none;border-radius:8px;font-size:.85rem;font-weight:800;cursor:pointer';
+    var no=document.createElement('button'); no.type='button'; no.textContent='Reject';
+    no.style.cssText='padding:.5rem 1.1rem;background:#E05252;color:white;border:none;border-radius:8px;font-size:.85rem;font-weight:800;cursor:pointer';
+    ok.onclick=function(){
+      var scope=scopeSel?scopeSel.value:(c.visibility_scope||'global');
+      if(!confirm("Approve '"+(c.creature_name||'')+"' for "+crScopeLabel(scope)+"?")) return;
+      closeCreatureViewer();
+      if(opts.onApprove) opts.onApprove(scope);
+    };
+    no.onclick=function(){
+      if(!confirm("Reject '"+(c.creature_name||'')+"'? You will be asked for the reason the student sees.")) return;
+      closeCreatureViewer();
+      if(opts.onReject) opts.onReject();
+    };
+    acts.appendChild(ok); acts.appendChild(no); info.appendChild(acts);
+  }
+
+  body.appendChild(left); body.appendChild(info);
+  panel.appendChild(body);
+  root.appendChild(panel);
+
+  var onKey=function(e){
+    if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); if(zoomEl) closeZoom(); else closeCreatureViewer(); return; }
+    if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&stages.length>1){
+      var t=e.target&&e.target.tagName; if(t==='SELECT'||t==='INPUT'||t==='TEXTAREA') return;
+      e.preventDefault();
+      sel=(sel+(e.key==='ArrowRight'?1:-1)+stages.length)%stages.length;
+      if(zoomEl) openZoom(sel); else { paintSel(); tiles[sel].scrollIntoView({block:'nearest',inline:'nearest'}); }
+    }
+  };
+  crViewerState={root:root,onKey:onKey,prevOverflow:document.body.style.overflow,returnFocus:document.activeElement};
+  document.addEventListener('keydown',onKey,true);
+  document.body.style.overflow='hidden';
+  document.body.appendChild(root);
+  paintSel();
+  closeBtn.focus();
+}
+window.openCreatureViewer=openCreatureViewer;
+window.closeCreatureViewer=closeCreatureViewer;
+
+// Card pieces shared by the three lists: a "View" button and the bigger, tinted thumbnail.
+function crViewButton(onOpen){
+  var b=document.createElement('button');
+  b.type='button'; b.textContent='View';
+  b.style.cssText='padding:.3rem .75rem;background:var(--navy);color:var(--yellow);border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer';
+  b.onclick=function(e){ if(e) e.stopPropagation(); onOpen(); };
+  return b;
 }
 
 async function renderCreatures(){
@@ -6242,13 +6554,11 @@ async function renderCreatures(){
         pending.forEach(function(c){
           var div=document.createElement('div');
           div.style.cssText='display:flex;gap:.75rem;padding:.75rem;border-radius:10px;background:var(--bg);margin-bottom:.5rem;align-items:flex-start';
-          var img=makeStageViewer(c,60);
+          var openPending=function(){ openCreatureViewer(c,{kind:'pending',onApprove:function(){approveCreature(c.id);},onReject:function(){rejectCreature(c.id);}}); };
+          var img=makeStageViewer(c,96,openPending,crTint(c.emotion_colour));
           var body=document.createElement('div');
           body.style.flex='1';
-          body.innerHTML='<div style="font-weight:900;color:var(--navy);font-size:.85rem">'+c.creature_name+'</div>'+
-            aiFlagBadge(c.ai_moderation_flag)+
-            '<div style="font-size:.72rem;color:var(--soft);margin:.2rem 0">'+c.emotion_colour+' · '+c.student_name+'</div>'+
-            '<div style="font-size:.68rem;color:var(--muted)">'+c.description+'</div>';
+          body.innerHTML=crCompactHTML(c,'pending');
           var btns=document.createElement('div');
           btns.style.cssText='display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap';
           var appBtn=document.createElement('button');
@@ -6259,7 +6569,7 @@ async function renderCreatures(){
           rejBtn.textContent='Reject';
           rejBtn.style.cssText='padding:.3rem .75rem;background:#E05252;color:white;border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer';
           rejBtn.onclick=function(){rejectCreature(c.id);};
-          btns.appendChild(appBtn);btns.appendChild(rejBtn);
+          btns.appendChild(crViewButton(openPending));btns.appendChild(appBtn);btns.appendChild(rejBtn);
           body.appendChild(btns);
           div.appendChild(img);div.appendChild(body);
           pel.appendChild(div);
@@ -6296,7 +6606,8 @@ async function renderCreatures(){
         approved.forEach(function(c){
           var card=document.createElement('div');
           card.style.cssText='border-radius:10px;overflow:hidden;background:white;box-shadow:0 2px 8px rgba(0,0,0,.06);border-top:3px solid '+(EMOS[c.emotion_colour]||'#ccc');
-          var img=makeStageViewer(c,null);
+          var openApproved=function(){ openCreatureViewer(c,{kind:'approved'}); };
+          var img=makeStageViewer(c,null,openApproved,crTint(c.emotion_colour));
           var body=document.createElement('div');
           body.style.padding='.5rem';
           var name=document.createElement('div');
@@ -6307,7 +6618,7 @@ async function renderCreatures(){
           creator.textContent=c.student_name||'';
           var uses=document.createElement('div');
           uses.style.cssText='font-size:.65rem;color:var(--muted)';
-          uses.textContent='🌍 '+(c.global_uses||0)+' uses';
+          uses.textContent='Finished by '+(c.global_uses||0);
           // Real product fix Sep 12 (tiered moderation model, Jono's confirmed sign-off):
           // this card is only ever reached via school_admin's creaturesHTML() today -
           // featuring is now superadmin-only (broadcasts worldwide, same tier as
@@ -6360,17 +6671,17 @@ async function renderSAAwaitingGlobalApproval(){
     rows.forEach(function(c){
       var div = document.createElement('div');
       div.style.cssText = 'display:flex;gap:.75rem;padding:.75rem;border-radius:10px;background:var(--bg);margin-bottom:.5rem;align-items:flex-start';
-      var img = makeStageViewer(c, 60);
+      var scopeSelRef = null;
+      var openAwaiting = function(){ openCreatureViewer(c,{kind:'awaiting',scopeValue:scopeSelRef?scopeSelRef.value:'school',onApprove:function(scope){globalApproveCreature(c.id,scope);},onReject:function(){globalRejectCreature(c.id);}}); };
+      var img = makeStageViewer(c, 96, openAwaiting, crTint(c.emotion_colour));
       var body = document.createElement('div');
       body.style.flex = '1';
-      body.innerHTML =
-        '<div style="font-weight:900;color:var(--navy);font-size:.85rem">'+esc(c.creature_name||'')+'</div>'+
-        aiFlagBadge(c.ai_moderation_flag)+
-        '<div style="font-size:.72rem;color:var(--soft);margin:.2rem 0">'+esc(c.emotion_colour||'')+' · '+esc(c.student_name||'')+' · '+esc(c.school_name||'')+(c.country?' · '+esc(c.country):'')+'</div>';
+      body.innerHTML = crCompactHTML(c,'awaiting');
       var scopeRow = document.createElement('div');
       scopeRow.style.cssText = 'margin-top:.4rem';
       var scopeSel = document.createElement('select');
       scopeSel.id = 'gaScope_'+c.id;
+      scopeSelRef = scopeSel;
       scopeSel.style.cssText = 'font-size:.72rem;padding:.25rem .4rem;border-radius:6px;border:1.5px solid rgba(0,0,0,.1)';
       [['classroom','Classroom only'],['school','Whole school'],['global','Global (every school)']].forEach(function(opt){
         var o = document.createElement('option'); o.value = opt[0]; o.textContent = opt[1];
@@ -6389,7 +6700,7 @@ async function renderSAAwaitingGlobalApproval(){
       rejBtn.textContent = 'Reject';
       rejBtn.style.cssText = 'padding:.3rem .75rem;background:#E05252;color:white;border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer';
       rejBtn.onclick = function(){ globalRejectCreature(c.id); };
-      btns.appendChild(appBtn); btns.appendChild(rejBtn);
+      btns.appendChild(crViewButton(openAwaiting)); btns.appendChild(appBtn); btns.appendChild(rejBtn);
       body.appendChild(btns);
       div.appendChild(img); div.appendChild(body);
       el.appendChild(div);
