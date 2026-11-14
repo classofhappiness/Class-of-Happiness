@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
@@ -1091,7 +1092,9 @@ export default function ParentDashboard() {
   if (user && user.role !== 'parent' && user.role !== 'teacher' && user.role !== 'superadmin') return null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      {/* logo-only right side (no home button on a dashboard): TranslatedHeader shows the logo when showHome is off */}
+      <TranslatedHeader title={t('family_dashboard_title') || 'Family Dashboard'} showBack />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={

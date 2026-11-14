@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
+import { TranslatedHeader } from '../src/components/TranslatedHeader';
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
@@ -15,6 +16,8 @@ export default function AboutScreen() {
   };
 
   return (
+    <View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
+    <TranslatedHeader title={t('about_privacy') || 'About & Privacy'} showBack />
     <ScrollView 
       style={[styles.container, { paddingBottom: insets.bottom }]}
       contentContainerStyle={styles.content}
@@ -153,6 +156,7 @@ export default function AboutScreen() {
         <Text style={styles.footerText}>© 2026 Class of Happiness</Text>
       </View>
     </ScrollView>
+    </View>
   );
 }
 

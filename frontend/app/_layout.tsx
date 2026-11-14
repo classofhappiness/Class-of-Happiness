@@ -17,7 +17,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
 import { CountryPromptGate } from '../src/components/CountryPromptGate';
 import { markSplashFinished } from '../src/utils/launchState';
-import { HeaderLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
 import { setupNotifeeChannels, isIncidentPushData, showIncidentAlert, registerNotifeeForegroundHandler } from '../src/utils/notifeeIncidents';
 import { requestSupportRequestsRefreshFromPush, findSupportRequestForPush } from '../src/utils/supportRequestsPoller';
@@ -478,14 +477,15 @@ function AppContent() {
         <Stack.Screen
           name="settings"
           options={{
+            headerShown: false,
             title: t('settings') || 'Settings',
             headerBackTitle: t('back') || 'Back',
-            headerRight: () => <HomeToLanding />,
           }}
         />
         <Stack.Screen
           name="about"
           options={{
+            headerShown: false,
             title: t('about_privacy') || 'About & Privacy',
             headerBackTitle: t('back') || 'Back',
           }}
@@ -493,6 +493,7 @@ function AppContent() {
         <Stack.Screen
           name="ask-adult-login"
           options={{
+            headerShown: false,
             title: t('ask_adult_login_title') || 'Please ask an adult to log in',
             headerBackTitle: t('back') || 'Back',
           }}
@@ -500,6 +501,7 @@ function AppContent() {
         <Stack.Screen
           name="credits"
           options={{
+            headerShown: false,
             title: t('credits_title') || 'Licences & Credits',
             headerBackTitle: t('back') || 'Back',
           }}
@@ -529,9 +531,9 @@ function AppContent() {
         <Stack.Screen
           name="student/zone"
           options={{
+            headerShown: false,
             title: t('how_are_you_feeling_title') || 'How Are You Feeling?',
             headerBackTitle: t('back') || 'Back',
-            headerRight: () => <HomeToStudents />,
           }}
         />
         <Stack.Screen
@@ -574,12 +576,14 @@ function AppContent() {
         <Stack.Screen
           name="teacher/creature-code"
           options={{
+            headerShown: false,
             title: t('manage_creatures_title') || 'Manage Creatures',
           }}
         />
         <Stack.Screen
           name="parent/creature-code"
           options={{
+            headerShown: false,
             title: t('manage_creatures_title') || 'Manage Creatures',
           }}
         />
@@ -663,9 +667,9 @@ function AppContent() {
         <Stack.Screen
           name="parent/dashboard"
           options={{
+            headerShown: false,
             title: t('family_dashboard_title') || 'Family Dashboard',
             headerTitleStyle: { fontWeight: '700' },
-            headerRight: ({ canGoBack }) => <DashboardLogoOnly canGoBack={canGoBack} />,
           }}
         />
         <Stack.Screen
@@ -788,71 +792,8 @@ const styles = StyleSheet.create({
     height: 30,
     marginRight: 8,
   },
-  // Real fix Sep 15 (Marisa build-26 round 2, Group A): was 32x32 - a different size from
-  // backButton's 36x36, so back and home read as two different-sized buttons despite being
-  // the same visual pattern. Unified to match.
-  // Real fix Oct 4 (Marisa's button redesign, Option 4 "Thin gray outline" pick): faint 1px
-  // #CFCFCF ring, transparent fill, replacing the Oct 3 solid Stone-fill/navy-ring treatment.
-  headerCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#CFCFCF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
 
-
-// HomeButton component - uses its own router hook so it works in Stack options
-//
-// Real fix Sep 14 (Marisa build-26, S04, confirmed against her actual screenshots) - see
-// HeaderWithBackAndLogo's note above. Home icon sits in a dark pill matching the back button.
-// Real fix Sep 15 (Marisa build-26 round 2, Group A): logo was a plain 22x22 image, visually
-// tiny next to a 36x36 button circle - enlarged to 32x32 (contain-fit, so it doesn't distort)
-// to actually read as comparable weight next to the button beside it, per her explicit ask.
-// Real fix Sep 18 (Marisa design feedback - reverted same day): back to the original,
-// non-inverted logo art, no black circle backing (see TranslatedHeader's matching comment
-// for the full rationale) - keeps the 48.4px size (134.5%) reached during that detour.
-function HomeToStudents() {
-  const r = useRouter();
-  return (
-    <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <HeaderLogo hasButtons />
-      <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <MaterialIcons name="home" size={20} color="#1A1A2E" />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function HomeToLanding() {
-  const r = useRouter();
-  return (
-    <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginRight:12 }}>
-      <HeaderLogo hasButtons />
-      <TouchableOpacity onPress={() => r.dismissTo('/')} style={styles.headerCircle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <MaterialIcons name="home" size={20} color="#1A1A2E" />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// Real fix Sep 19 (Jono's explicit call): on a role DASHBOARD screen specifically (the
-// landing screen the native back button already returns to in practice), a separate home
-// button is redundant - removed for parent/dashboard's headerRight below, logo alone now
-// sits where home used to be (the far right). Deliberately a new component rather than
-// editing HomeToLanding in place - that one is also used by the plain 'settings' screen
-// (line ~327 below), which is not a dashboard and keeps its home button.
-function DashboardLogoOnly({ canGoBack }: { canGoBack?: boolean }) {
-  return (
-    <View style={{ marginRight: 12 }}>
-      <HeaderLogo hasButtons={!!canGoBack} />
-    </View>
-  );
-}
 
 function RootLayout() {
   // Fredoka_700Bold is used ONLY for the Student/Teacher/Parent titles on the home screen

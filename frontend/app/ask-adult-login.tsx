@@ -2,12 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
+import { TranslatedHeader } from '../src/components/TranslatedHeader';
 
 // Shown when Student is pressed and nobody is logged in: the app cannot be used without a login, and a child cannot
 // log in for themselves. Deliberately plain (no story / animation yet): one message and a Login button for the adult.
 export default function AskAdultLogin() {
   const { t, login } = useApp();
   return (
+    <View style={{ flex: 1, backgroundColor: '#F8F9FA' }}>
+    <TranslatedHeader title={t('ask_adult_login_title') || 'Please ask an adult to log in'} showBack />
     <View style={styles.container}>
       <MaterialIcons name="lock-outline" size={64} color="#5C6BC0" />
       <Text style={styles.title} accessibilityRole="header">{t('ask_adult_login_title') || 'Please ask an adult to log in'}</Text>
@@ -16,6 +19,7 @@ export default function AskAdultLogin() {
         <MaterialIcons name="login" size={22} color="white" />
         <Text style={styles.buttonText}>{t('login') || 'Login'}</Text>
       </TouchableOpacity>
+    </View>
     </View>
   );
 }

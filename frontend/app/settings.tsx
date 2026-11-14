@@ -2,6 +2,7 @@ import React, { useState, useLayoutEffect, useEffect } from 'react';
 import { KeyboardSafeView } from '../src/components/KeyboardSafeView';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Switch, Platform, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TranslatedHeader } from '../src/components/TranslatedHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as AuthSession from 'expo-auth-session';
 import { useRouter, useNavigation } from 'expo-router';
@@ -675,7 +676,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+    <TranslatedHeader title={t('settings') || 'Settings'} showBack showHome />
     <KeyboardSafeView style={{ flex: 1 }}>
     <ScrollView keyboardShouldPersistTaps="handled" 
       style={styles.container}

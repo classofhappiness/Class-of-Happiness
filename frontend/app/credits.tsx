@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TranslatedHeader } from '../src/components/TranslatedHeader';
 import { ScrollView, View, Text, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { useApp } from '../src/context/AppContext';
 import { OFL_FREDOKA } from '../src/constants/licences';
@@ -30,7 +31,9 @@ export default function Credits() {
     </Text>
   );
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
+    <TranslatedHeader title={t('credits_title') || 'Licences & Credits'} showBack />
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>{t('credits_fonts') || 'Fonts'}</Text>
       {FONTS.map((f) => (
         <View key={f.name} style={styles.row}>
@@ -54,6 +57,7 @@ export default function Credits() {
         <Text style={[styles.licence, { marginTop: 6 }]}>{APACHE_NOTICE}</Text>
       </View>
     </ScrollView>
+    </View>
   );
 }
 

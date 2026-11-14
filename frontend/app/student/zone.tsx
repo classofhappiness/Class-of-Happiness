@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -166,7 +167,8 @@ export default function ColourSelectionScreen() {
 
   if (!currentStudent) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+        <TranslatedHeader title={t('how_are_you_feeling_title') || 'How Are You Feeling?'} showBack showHome />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{t('select_profile') || 'Select Your Profile'}</Text>
         </View>
@@ -175,7 +177,8 @@ export default function ColourSelectionScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <TranslatedHeader title={t('how_are_you_feeling_title') || 'How Are You Feeling?'} showBack showHome />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
         <View style={styles.greetingRow}>
