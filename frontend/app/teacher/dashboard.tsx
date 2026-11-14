@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { openAlertCount } from '../../src/utils/alertCount';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, RefreshControl, useWindowDimensions, Alert, Animated,
@@ -287,7 +288,7 @@ export default function TeacherDashboardScreen() {
       // Alert count
       const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
       const alertsData = alertsRes?.ok ? await alertsRes.json() : [];
-      setAlertCount(Array.isArray(alertsData) ? alertsData.filter((a:any) => !a.resolved).length : 0);
+      setAlertCount(openAlertCount(alertsData));
 
       // Period snapshot — use analytics zone_counts if available, else count from logs
       const periodZones = analyticsData?.zone_counts || analyticsData?.feeling_counts || null;
@@ -358,7 +359,7 @@ export default function TeacherDashboardScreen() {
       const h = { Authorization: `Bearer ${token}` };
       const alertsRes = await fetch(`${BACKEND_URL}/api/notifications/alerts`, { headers: h }).catch(() => null);
       const alertsData = alertsRes?.ok ? await alertsRes.json() : [];
-      setAlertCount(Array.isArray(alertsData) ? alertsData.filter((a:any) => !a.resolved).length : 0);
+      setAlertCount(openAlertCount(alertsData));
     } catch (e) { console.error('[teacher/dashboard:356]', e); }
   }, []);
 
