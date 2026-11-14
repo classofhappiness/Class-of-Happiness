@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TouchableOpacity,
   StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
+import { PinInput, PIN_AUTOFOCUS_DELAY_MS } from '../../src/components/PinInput';
 
 // Real product fix Sep 12: registration email verification. app/_layout.tsx redirects any
 // authenticated session with email_verified === false here, on every navigation, until this
@@ -106,15 +107,14 @@ export default function VerifyEmailRequiredScreen() {
           </TouchableOpacity>
 
           <Text style={styles.label}>{t('verification_code_label') || 'Verification Code'}</Text>
-          <TextInput
+          <PinInput
             style={styles.input}
             placeholder="123456"
             placeholderTextColor="#BBB"
             value={code}
             onChangeText={setCode}
-            keyboardType="number-pad"
             maxLength={6}
-            autoFocus
+            autoFocusDelay={PIN_AUTOFOCUS_DELAY_MS}
             onSubmitEditing={handleVerify}
             returnKeyType="go"
           />

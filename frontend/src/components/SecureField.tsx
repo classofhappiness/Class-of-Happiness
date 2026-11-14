@@ -11,7 +11,7 @@
 // looks like the more "obvious" way to highlight focus, but it nudges every sibling element
 // on the screen by however many extra pixels the border grew, which reads as a layout glitch
 // rather than a clean focus state.
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, TextInputProps, ViewStyle, StyleProp } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -24,6 +24,8 @@ interface SecureFieldProps extends Omit<TextInputProps, 'secureTextEntry' | 'sty
   iconColor?: string;
   focusColor?: string;
   borderColor?: string;
+  // PIN fields: focus this many ms after mounting instead of using autoFocus (iOS drops a focus made while a Modal is still opening).
+  autoFocusDelay?: number;
 }
 
 export function SecureField({
@@ -35,10 +37,17 @@ export function SecureField({
   borderColor = '#E0E0E0',
   onFocus,
   onBlur,
+  autoFocusDelay,
   ...rest
 }: SecureFieldProps) {
   const [visible, setVisible] = useState(false);
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  useEffect(() => {
+    if (autoFocusDelay == null) return;
+    const id = setTimeout(() => inputRef.current?.focus(), autoFocusDelay);
+    return () => clearTimeout(id);
+  }, []);
 
   return (
     <View
@@ -50,6 +59,7 @@ export function SecureField({
     >
       <TextInput
         {...rest}
+        ref={inputRef}
         secureTextEntry={!visible}
         onFocus={(e) => { setFocused(true); onFocus?.(e); }}
         onBlur={(e) => { setFocused(false); onBlur?.(e); }}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { PinInput, PIN_AUTOFOCUS_DELAY_MS } from './PinInput';
 import { EMOTION_COLOURS, EMOTION_LIGHT_COLOURS } from '../constants/emotionColours';
 
 // A simple adult check in front of purchases: one addition a young child is unlikely to do.
@@ -65,14 +66,13 @@ export const ParentGate: React.FC<{
         <View style={styles.card}>
           <Text style={styles.title}>{t('parent_gate_title') || 'For grown-ups'}</Text>
           <Text style={styles.prompt}>{prompt}</Text>
-          <TextInput
+          <PinInput
             style={styles.input}
             value={answer}
             onChangeText={(v) => { setAnswer(v); setWrong(false); }}
-            keyboardType="number-pad"
             maxLength={6}
             returnKeyType="done"
-            autoFocus
+            autoFocusDelay={PIN_AUTOFOCUS_DELAY_MS}
             onSubmitEditing={submit}
           />
           {wrong && <Text style={styles.wrong}>{t('parent_gate_wrong') || "That's not right. Please try again."}</Text>}

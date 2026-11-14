@@ -9,6 +9,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { SecureField } from '../../src/components/SecureField';
+import { PinInput, PIN_AUTOFOCUS_DELAY_MS } from '../../src/components/PinInput';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -273,15 +274,14 @@ export default function LoginScreen() {
             <View style={styles.form}>
               <Text style={styles.label}>{t('enter_code_label') || 'Enter the code we emailed you'}</Text>
               <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{activeEmail}</Text>
-              <TextInput
+              <PinInput
                 style={styles.input}
                 placeholder="123456"
                 placeholderTextColor="#BBB"
                 value={code}
                 onChangeText={setCode}
-                keyboardType="number-pad"
                 maxLength={6}
-                autoFocus
+                autoFocusDelay={PIN_AUTOFOCUS_DELAY_MS}
                 onSubmitEditing={handleVerifyCode}
                 returnKeyType="go"
               />
@@ -314,16 +314,15 @@ export default function LoginScreen() {
             <View style={styles.form}>
               <Text style={styles.label}>{t('enter_pin_label') || 'Enter your PIN'}</Text>
               <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{activeEmail}</Text>
-              <TextInput
+              <PinInput
                 style={styles.input}
                 placeholder="123456"
                 placeholderTextColor="#BBB"
                 value={pin}
                 onChangeText={setPin}
-                keyboardType="number-pad"
                 maxLength={6}
-                secureTextEntry
-                autoFocus
+                secure
+                autoFocusDelay={PIN_AUTOFOCUS_DELAY_MS}
                 onSubmitEditing={handleVerifyPin}
                 returnKeyType="go"
               />
@@ -367,16 +366,15 @@ export default function LoginScreen() {
               <Text style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
                 {t('set_pin_hint') || "Choose a 6-digit PIN. You'll use it with your password to sign in from now on."}
               </Text>
-              <TextInput
+              <PinInput
                 style={styles.input}
                 placeholder="123456"
                 placeholderTextColor="#BBB"
                 value={newPin}
                 onChangeText={setNewPin}
-                keyboardType="number-pad"
                 maxLength={6}
-                secureTextEntry
-                autoFocus
+                secure
+                autoFocusDelay={PIN_AUTOFOCUS_DELAY_MS}
                 onSubmitEditing={handleSetPin}
                 returnKeyType="go"
               />

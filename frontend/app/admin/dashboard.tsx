@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { EMOTION_COLOURS } from '../../src/constants/emotionColours';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { SecureField } from '../../src/components/SecureField';
+import { PIN_FIELD_PROPS } from '../../src/components/PinInput';
 import { PinConfirmModal } from '../../src/components/PinConfirmModal';
 import { orderPrimaryTopicsFirst } from '../../src/constants/resourceTopics';
 import { ResourceFactsChips } from '../../src/components/ResourceFactsChips';
@@ -3759,8 +3760,8 @@ export default function AdminDashboard() {
             placeholder="••••••"
             value={adminCode}
             onChangeText={setAdminCode}
+            {...PIN_FIELD_PROPS}
             autoCapitalize="characters"
-            autoCorrect={false}
             maxLength={20}
             placeholderTextColor="#CCC"
             returnKeyType="done"

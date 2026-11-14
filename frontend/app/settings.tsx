@@ -20,6 +20,7 @@ import { SecureField } from '../src/components/SecureField';
 import { PinConfirmModal } from '../src/components/PinConfirmModal';
 import { CollapsibleCard } from '../src/components/CollapsibleCard';
 import { CountryPicker } from '../src/components/CountryPicker';
+import { PIN_FIELD_PROPS } from '../src/components/PinInput';
 import { COUNTRIES } from '../src/constants/countries';
 import { ReadingFontSettings } from '../src/components/ReadingFontSettings';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
@@ -923,6 +924,7 @@ export default function SettingsScreen() {
               value={newPin}
               onChangeText={(v: string) => setNewPin(v.replace(/[^0-9]/g, '').slice(0, 6))}
               keyboardType="number-pad"
+              {...PIN_FIELD_PROPS}
               maxLength={6}
             />
             <TouchableOpacity

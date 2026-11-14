@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ActivityIndicator, Platform, KeyboardAvoidingView } from 'react-native';
 import { SecureField } from './SecureField';
+import { PIN_FIELD_PROPS, PIN_AUTOFOCUS_DELAY_MS } from './PinInput';
 import { useAndroidKeyboardOffset } from '../utils/useAndroidKeyboardOffset';
 
 interface PinConfirmModalProps {
@@ -62,10 +63,11 @@ export function PinConfirmModal({
             containerStyle={styles.field}
             placeholder={pinLabel}
             keyboardType="number-pad"
+            {...PIN_FIELD_PROPS}
             maxLength={6}
             value={pin}
             onChangeText={(v) => { setPin(v); setError(false); }}
-            autoFocus
+            autoFocusDelay={PIN_AUTOFOCUS_DELAY_MS}
           />
           {error && <Text style={styles.errorText}>{wrongPinLabel}</Text>}
           <View style={styles.row}>

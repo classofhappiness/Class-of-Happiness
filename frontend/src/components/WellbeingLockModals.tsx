@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { PinInput } from './PinInput';
 import { KeyboardSafeView } from './KeyboardSafeView';
 import {
   WL_PROMPTS, WL_PROMPT_KEYS, WL_PROMPT_FALLBACK, WlPrompt, WlResult, WlStatus,
@@ -119,7 +120,7 @@ export function WellbeingResetModal({ visible, scope, t, onVerified, onClose }: 
             <>
               <Text style={st.desc}>{(t('wl_email_sent') || 'We sent a 6-digit code to {email}. It is valid for 10 minutes.').replace('{email}', maskedEmail)}</Text>
               <Text style={st.desc}>{t('wl_email_junk') || 'Check your Junk/Spam folder.'}</Text>
-              <TextInput style={st.input} value={value} onChangeText={setValue} keyboardType="number-pad"
+              <PinInput style={st.input} value={value} onChangeText={setValue}
                 placeholder={t('wl_code_placeholder') || '6-digit code'} placeholderTextColor="#999" editable={!busy} maxLength={6} />
             </>
           ) : (
