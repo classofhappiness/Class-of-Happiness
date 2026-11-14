@@ -289,17 +289,20 @@ export default function ColourSelectionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  content: { padding: 12, paddingBottom: 32 },
+  // S04: the content fills the screen so the four colour buttons can share the free height (flexGrow); on a short screen it scrolls instead
+  content: { padding: 12, paddingBottom: 32, flexGrow: 1 },
   greetingRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 10, borderRadius: 14, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   greetingText: { flex: 1, marginLeft: 10 },
   greetingHi: { fontSize: 18, fontWeight: '700', color: '#333' },
   greetingSub: { fontSize: 13, color: '#555', marginTop: 2 },
 
   // Full-width stacked buttons
-  zonesStack: { gap: 10 },
+  zonesStack: { flex: 1, gap: 10 },
   zoneButton: {
     width: '100%',
-    paddingVertical: 20,
+    flex: 1,
+    minHeight: 92,
+    paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 18,
     flexDirection: 'row',
