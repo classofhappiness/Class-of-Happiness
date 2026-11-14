@@ -147,9 +147,35 @@ export default function HomeScreen() {
           <LogoLockup introRound />
         </View>
 
+        {/* Middle zone: all the free height between the logo and the Student button; heading, word slot and circles are centred in it. */}
+        <View style={styles.middleZone}>
         {/* Subtitle */}
         <Text style={styles.subtitle} allowFontScaling={false}>{t('how_are_you_feeling') || 'How are you feeling today?'}</Text>
 
+        {/* Held-word display - now ABOVE the circles so a finger on a circle never covers it. Reserves its height even
+            when nothing is held, so nothing shifts as a hold starts or ends. */}
+        {HOME_EMOJI_INTERACTION_ENABLED && (
+          <View style={[styles.moodWordSlot, readingOn && styles.moodWordSlotReading]}>
+            {heldZone && (
+              <Animated.View style={[{ opacity: Animated.multiply(wordFade, breathe), flexDirection: 'row', alignItems: 'center', gap: 6 }, readingOn && { maxWidth: '100%' }]}>
+                <Text style={{ fontSize: 22 }}>{zoneWords[heldZone][wordIdx]?.emoji}</Text>
+                {/* Root cause fix (German/Russian/Arabic length check, this feature): a fixed
+                    fontSize clipped/wrapped the longest real translations (e.g. German "Sehr
+                    Aufgebracht", Russian "Сосредоточенность", both 16-17 chars) - same
+                    adjustsFontSizeToFit + minimumFontScale + numberOfLines={1} pattern already
+                    used on this exact screen's own Teacher/Parent subtitles for the same reason. */}
+                {/* Reading font on: no 220 cap, no single-line shrink - the label may use the row
+                    width and wrap onto a second line (slot height is reserved for two lines). */}
+                <Text
+                  style={[styles.moodWordText, readingOn && styles.moodWordTextReading]}
+                  {...(readingOn ? { numberOfLines: 2 } : { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.65 })}
+                >
+                  {zoneWords[heldZone][wordIdx]?.label}
+                </Text>
+              </Animated.View>
+            )}
+          </View>
+        )}
         {/* Zone emoji faces — decorative, sets the tone. Press-and-hold (build 27, live
             feedback): fully gated on HOME_EMOJI_INTERACTION_ENABLED - when false, this renders
             (and behaves) exactly as the plain decorative row it always was, Pressable's onPress
@@ -180,33 +206,6 @@ export default function HomeScreen() {
           })}
         </View>
 
-        {/* Held-word display - reserves its height even when nothing is held, so the layout
-            below never jumps/shifts as a hold starts or ends. */}
-        {HOME_EMOJI_INTERACTION_ENABLED && (
-          <View style={[styles.moodWordSlot, readingOn && styles.moodWordSlotReading]}>
-            {heldZone && (
-              <Animated.View style={[{ opacity: Animated.multiply(wordFade, breathe), flexDirection: 'row', alignItems: 'center', gap: 6 }, readingOn && { maxWidth: '100%' }]}>
-                <Text style={{ fontSize: 22 }}>{zoneWords[heldZone][wordIdx]?.emoji}</Text>
-                {/* Root cause fix (German/Russian/Arabic length check, this feature): a fixed
-                    fontSize clipped/wrapped the longest real translations (e.g. German "Sehr
-                    Aufgebracht", Russian "Сосредоточенность", both 16-17 chars) - same
-                    adjustsFontSizeToFit + minimumFontScale + numberOfLines={1} pattern already
-                    used on this exact screen's own Teacher/Parent subtitles for the same reason. */}
-                {/* Reading font on: no 220 cap, no single-line shrink - the label may use the row
-                    width and wrap onto a second line (slot height is reserved for two lines). */}
-                <Text
-                  style={[styles.moodWordText, readingOn && styles.moodWordTextReading]}
-                  {...(readingOn ? { numberOfLines: 2 } : { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.65 })}
-                >
-                  {zoneWords[heldZone][wordIdx]?.label}
-                </Text>
-              </Animated.View>
-            )}
-          </View>
-        )}
-        <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, marginBottom:16}}>
-          <Text style={{fontSize:12, fontStyle:'italic', color:'#000', fontWeight:'400'}}>{t('select_below_to_begin') || 'Select below to begin'}</Text>
-          <Text style={{fontSize:13, color:'#000'}}>↓</Text>
         </View>
 
         {/* STUDENT — hero button, much bigger */}
@@ -332,7 +331,7 @@ const FREDOKA_LANGS = ['en', 'es', 'fr', 'pt', 'de', 'it'];
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24, flexGrow: 1, justifyContent: 'center' },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24, flexGrow: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   appTitle: { fontSize: 28, fontWeight: 'bold', color: '#5C6BC0' },
   loadingText: { fontSize: 18, color: '#666', marginTop: 20 },
@@ -340,9 +339,11 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginBottom: 4 },
   topBarBtn: { padding: 8 },
 
-  logoContainer: { alignItems: 'center', marginTop: 30, marginBottom: 34 },
+  logoContainer: { alignItems: 'center', marginTop: 30 },
+  // flex:1 = all free height between the logo and the Student button; minHeight keeps it usable on small phones (ScrollView scrolls).
+  middleZone: { flex: 1, minHeight: 150, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
 
-  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 14, fontWeight: '500' },
+  subtitle: { fontSize: 16, color: '#333', textAlign: 'center', marginBottom: 6, fontWeight: '500' },
 
   // Root cause fix (flag-off parity check): this used to be marginBottom:14 before the
   // press-hold feature - reduced to 6 so the new moodWordSlot's OWN spacing (below) wouldn't
@@ -350,7 +351,7 @@ const styles = StyleSheet.create({
   // LESS space here than the screen had before this feature existed. Kept at the original 14
   // unconditionally; moodWordSlot's own marginBottom is what changes total spacing when a word
   // is actually showing, not this row's.
-  zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 14 },
+  zonePreviewRow: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   zoneFaceContainer: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   zoneFace: { fontSize: 22 },
   zoneTip: { fontSize: 12, color: '#555', textAlign: 'center', marginBottom: 28 },
