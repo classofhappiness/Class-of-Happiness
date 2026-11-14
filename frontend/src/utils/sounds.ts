@@ -97,6 +97,8 @@ const playHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
   } catch (e) { console.error('[utils/sounds:97]', e); }
 };
 
+// Haptic only: for a tap that must not add a sound (the reward screen's Continue and Evolve buttons)
+export const playButtonHaptic = () => { playHaptic('light'); };
 export const playButtonFeedback  = () => { playButtonSound();  playHaptic('light'); };
 export const playSelectFeedback  = () => { playSelectSound();  playHaptic('medium'); };
 // Real fix Sep 15 (Marisa build-26, S06): playSound param lets a caller skip the audible

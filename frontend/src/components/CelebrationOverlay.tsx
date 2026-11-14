@@ -11,6 +11,9 @@ interface CelebrationOverlayProps {
   avatarCustom?: string;
   presetAvatars?: { id: string; emoji: string }[];
   onComplete: () => void;
+  // S06: how long the whole overlay stays up in total (fade in + hold + fade out), in ms. strategies.tsx sets it to the length of
+  // the praise speech plus one second, between 3 s and 6 s.
+  holdMs?: number;
   translations?: {
     well_done?: string;
     support_message?: string;
@@ -25,12 +28,12 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   avatarCustom,
   presetAvatars,
   onComplete,
+  holdMs = 3000,
   translations = {},
 }) => {
   const { width } = useWindowDimensions();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
-  const starAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -56,24 +59,8 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             useNativeDriver: true,
           }),
         ]),
-        // Star sparkle animation
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(starAnim, {
-              toValue: 1,
-              duration: 500,
-              useNativeDriver: true,
-            }),
-            Animated.timing(starAnim, {
-              toValue: 0,
-              duration: 500,
-              useNativeDriver: true,
-            }),
-          ]),
-          { iterations: 3 }
-        ),
-        // Hold for a moment
-        Animated.delay(500),
+        // Hold: the total time on screen is holdMs (300 ms in, 500 ms out, the rest is the hold)
+        Animated.delay(Math.max(0, holdMs - 800)),
         // Fade out
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -83,7 +70,6 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       ]).start(() => {
         // Reset animations
         scaleAnim.setValue(0.5);
-        starAnim.setValue(0);
         onComplete();
       });
     }
@@ -91,39 +77,9 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
 
   if (!visible) return null;
 
-  const starOpacity = starAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 1],
-  });
-
-  const starScale = starAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.8, 1.2],
-  });
-
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Animated.View style={[styles.content, { transform: [{ scale: scaleAnim }] }]}>
-        {/* Stars background */}
-        <Animated.View style={[styles.star, styles.star1, { opacity: starOpacity, transform: [{ scale: starScale }] }]}>
-          <MaterialIcons name="star" size={40} color="#FFD700" />
-        </Animated.View>
-        <Animated.View style={[styles.star, styles.star2, { opacity: starOpacity, transform: [{ scale: starScale }] }]}>
-          <MaterialIcons name="star" size={30} color="#FFD700" />
-        </Animated.View>
-        <Animated.View style={[styles.star, styles.star3, { opacity: starOpacity, transform: [{ scale: starScale }] }]}>
-          <MaterialIcons name="star" size={35} color="#FFD700" />
-        </Animated.View>
-        <Animated.View style={[styles.star, styles.star4, { opacity: starOpacity, transform: [{ scale: starScale }] }]}>
-          <MaterialIcons name="star" size={25} color="#FFD700" />
-        </Animated.View>
-        <Animated.View style={[styles.star, styles.star5, { opacity: starOpacity, transform: [{ scale: starScale }] }]}>
-          <MaterialIcons name="star" size={32} color="#FFD700" />
-        </Animated.View>
-        <Animated.View style={[styles.star, styles.star6, { opacity: starOpacity, transform: [{ scale: starScale }] }]}>
-          <MaterialIcons name="star" size={28} color="#FFD700" />
-        </Animated.View>
-
         {/* Main content */}
         <View style={[styles.celebrationCard, { width: width * 0.85 }]}>
           {/* Avatar */}
@@ -150,13 +106,6 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             <Text style={styles.message}>
               {translations.support_message || 'You can always ask an adult\nand friends for support'}
             </Text>
-          </View>
-
-          {/* Decorative elements */}
-          <View style={styles.confettiRow}>
-            <Text style={styles.confetti}>🎉</Text>
-            <Text style={styles.confetti}>⭐</Text>
-            <Text style={styles.confetti}>🎉</Text>
           </View>
         </View>
       </Animated.View>
@@ -228,39 +177,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     fontWeight: '500',
-  },
-  confettiRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  confetti: {
-    fontSize: 28,
-  },
-  star: {
-    position: 'absolute',
-  },
-  star1: {
-    top: -60,
-    left: -40,
-  },
-  star2: {
-    top: -30,
-    right: -30,
-  },
-  star3: {
-    bottom: -50,
-    left: -20,
-  },
-  star4: {
-    bottom: -40,
-    right: -40,
-  },
-  star5: {
-    top: 50,
-    left: -50,
-  },
-  star6: {
-    top: 80,
-    right: -45,
   },
 });

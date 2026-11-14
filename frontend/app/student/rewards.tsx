@@ -28,7 +28,7 @@ import { CreatureDisplay } from '../../src/components/CreatureDisplay';
 import { EvolutionAnimation } from '../../src/components/EvolutionAnimation';
 import { CommunityEvolutionAnimation } from '../../src/components/CommunityEvolutionAnimation';
 import { BonusItemCelebration, CelebrationItem } from '../../src/components/BonusItemCelebration';
-import { playButtonFeedback, playRewardFeedback, playEvolutionSound, preloadSounds } from '../../src/utils/sounds';
+import { playButtonFeedback, playButtonHaptic, playRewardFeedback, preloadSounds } from '../../src/utils/sounds';
 import { playPhraseFromPool } from '../../src/utils/voiceClips';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -48,6 +48,8 @@ export default function RewardsScreen() {
     // family_zone_logs row student/strategies.tsx already wrote for this check-in - threaded
     // through so the single addPoints call below can pass it as an idempotency key.
     checkinLogId?: string;
+    // S06: how long the creature loading page stays up (the praise speech length + 1 s, 3 to 6 s), set by strategies.tsx
+    holdMs?: string;
   }>();
 
   const [rewardsData, setRewardsData] = useState<AddPointsResponse | null>(null);
@@ -209,8 +211,10 @@ export default function RewardsScreen() {
       console.error('Error fetching rewards:', error);
     } finally {
       const elapsed = Date.now() - loadStartedAt;
-      if (elapsed < 900) {
-        setTimeout(() => setLoading(false), 900 - elapsed);
+      const holdParam = Number(params.holdMs);
+      const loadFloorMs = Number.isFinite(holdParam) && holdParam > 0 ? Math.min(6000, Math.max(3000, holdParam)) : 900;   // skip path: no praise, keep the old 900 ms beat
+      if (elapsed < loadFloorMs) {
+        setTimeout(() => setLoading(false), loadFloorMs - elapsed);
       } else {
         setLoading(false);
       }
@@ -265,7 +269,7 @@ export default function RewardsScreen() {
   };
 
   const handleContinue = () => {
-    playButtonFeedback();
+    playButtonHaptic();     // S06: no button sound here - the reward sound is the only one after the praise, and the farewell clip plays next
     // Real feature Aug 28 (item A): farewell-phrase pool (See_you_tomorrow/
     // Thank_you_for_checking_in), the genuine "leaving the check-in session" moment -
     // fire-and-forget like every other voice clip in this app, plays over the navigation.
@@ -289,13 +293,12 @@ export default function RewardsScreen() {
     const effectiveStudentId = currentStudent ? ((currentStudent as any).student_id || currentStudent.id) : null;
     if (!effectiveStudentId) return;
     setIsEvolving(true);
-    playButtonFeedback();
+    playButtonHaptic();
     try {
       const result = await rewardsApi.evolve(effectiveStudentId, evolvingCreatureId);
       const isCommunity = rewardsData?.current_creature?.creature_type === 'community';
       setPreviousStage(visibleStage);
       setEvolutionReady(false);
-      playEvolutionSound();
       // Real fix Sep 15 (B1 core-loop bug): community creatures get their own animation
       // instead of the default one, which is hard-gated to creatures with a .stages array
       // and would never render for them - see CommunityEvolutionAnimation.

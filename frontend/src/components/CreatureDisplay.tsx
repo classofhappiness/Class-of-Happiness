@@ -131,7 +131,6 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   const effectOpacity = useRef(new Animated.Value(0)).current;
 
   const stageInfo = imageUrl ? null : creature.stages![stage];
-  const animConfig = getCreatureAnimationConfig(creature.zone!, stage);
 
   // Calculate growth progress within current stage (0 to 1)
   const previousThreshold = imageUrl ? 0 : (stage > 0 ? creature.stages![stage].required_points : 0);
@@ -146,7 +145,7 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
   const basePreset = {
     small: { emoji: 40, container: 80, fontSize: 12 },
     medium: { emoji: 80, container: 140, fontSize: 14 },
-    large: { emoji: 120, container: 200, fontSize: 16 },
+    large: { emoji: 110, container: 200, fontSize: 16 },   // S06: was 120 - with the 25% growth the glyph reached 150 px and touched the edge of its 200 px circle
   }[size];
 
   // Real fix Sep 24 (item2): scale the emoji down by the same ratio the container is capped
@@ -156,6 +155,17 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
 
   // Apply growth to emoji size
   const dynamicEmojiSize = sizeConfig.emoji * growthMultiplier;
+
+  // S06: the swim / hop distance is capped by the room the glyph has left inside its circle, so it can never be pushed
+  // against the edge and clipped (it used to be up to 35 px whatever the size).
+  const rawAnimConfig = getCreatureAnimationConfig(creature.zone!, stage);
+  const roomInCircle = Math.max(4, (sizeConfig.container - dynamicEmojiSize) / 2 - 4);
+  const moveScale = Math.min(1, roomInCircle / Math.max(1, rawAnimConfig.horizontalMovement, rawAnimConfig.verticalMovement));
+  const animConfig = {
+    ...rawAnimConfig,
+    horizontalMovement: rawAnimConfig.horizontalMovement * moveScale,
+    verticalMovement: rawAnimConfig.verticalMovement * moveScale,
+  };
 
   useEffect(() => {
     if (!animated) return;
@@ -614,27 +624,6 @@ export const CreatureDisplay: React.FC<CreatureDisplayProps> = ({
             </Text>
           )}
         </Animated.View>
-        
-        {/* Growth sparkles when progressing */}
-        {progressInStage > 0.3 && progressInStage < 1 && (
-          <View style={styles.sparklesContainer}>
-            {[...Array(Math.floor(progressInStage * 5))].map((_, i) => (
-              <Text 
-                key={i} 
-                style={[
-                  styles.sparkle,
-                  { 
-                    top: `${20 + (i * 15)}%`,
-                    left: i % 2 === 0 ? '10%' : '80%',
-                    opacity: 0.5 + (progressInStage * 0.5),
-                  }
-                ]}
-              >
-                ✨
-              </Text>
-            ))}
-          </View>
-        )}
       </View>
 
       {/* Name and Stage - a community creature has one name overall, not a real per-stage
@@ -744,15 +733,6 @@ const styles = StyleSheet.create({
   },
   emoji: {
     textAlign: 'center',
-  },
-  sparklesContainer: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  sparkle: {
-    position: 'absolute',
-    fontSize: 14,
   },
   name: {
     fontWeight: 'bold',

@@ -207,18 +207,22 @@ export const playPhraseFromPool = async (
 // lets a caller (strategies.tsx) roll the index itself once and keep the sound and the
 // on-screen support_message text in sync (same roll picks both). No-op for the same
 // reasons as playPhraseFromPool (voice off, empty pool), plus an out-of-range index.
-export const playPraisePhraseAtIndex = async (language: string, index: number): Promise<void> => {
-  if (!voiceEnabled) return;
+// Resolves to the length of the clip in milliseconds (null when nothing played), so the caller can keep the praise on screen
+// for as long as the child is hearing it.
+export const playPraisePhraseAtIndex = async (language: string, index: number): Promise<number | null> => {
+  if (!voiceEnabled) return null;
   try {
     const urls = await loadPhrasePool('praise', language);
-    if (!urls.length || index < 0 || index >= urls.length) return;
+    if (!urls.length || index < 0 || index >= urls.length) return null;
     const sound = await createResilientSound(urls[index], { shouldPlay: true, volume: 1.0 });
     sound?.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
         sound.unloadAsync().catch(() => {});
       }
     });
-  } catch (e) { console.error('[utils/voiceClips:playPraisePhraseAtIndex]', e); }
+    const status: any = await sound?.getStatusAsync();
+    return status && status.isLoaded && typeof status.durationMillis === 'number' ? status.durationMillis : null;
+  } catch (e) { console.error('[utils/voiceClips:playPraisePhraseAtIndex]', e); return null; }
 };
 
 // Real feature Sep 21 (device report): S04 (zone.tsx) is where the delay is most

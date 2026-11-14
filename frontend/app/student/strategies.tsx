@@ -13,6 +13,7 @@ import { StrategyCard } from '../../src/components/StrategyCard';
 import { CelebrationOverlay } from '../../src/components/CelebrationOverlay';
 import { playButtonFeedback, playSelectFeedback, playSuccessSound, preloadSounds } from '../../src/utils/sounds';
 import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPraisePhraseAtIndex } from '../../src/utils/voiceClips';
+import { praiseHoldMs } from '../../src/utils/praiseHold';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 import { EmotionColourLoader } from '../../src/components/EmotionColourLoader';
 
@@ -56,6 +57,8 @@ export default function StrategiesScreen() {
   }, [currentStudent?.id]);
   const [showCelebration, setShowCelebration] = useState(false);
   const [praiseIndex, setPraiseIndex] = useState(0);
+  // S06: how long the praise overlay and the creature loading page stay up (speech length + 1 s, 3 to 6 s)
+  const [holdMs, setHoldMs] = useState(3000);
   // Real fix Sep 24 (item2, third device-log pass): the id of the feeling_logs/
   // family_zone_logs row handleDone below writes for this check-in - threaded through to
   // rewards.tsx as a param so its single addPoints call can use it as an idempotency key
@@ -241,7 +244,15 @@ export default function StrategiesScreen() {
       if (!customSupportMessage) {
         const roll = Math.floor(Math.random() * 4);
         setPraiseIndex(roll);
-        if (roll < 3) playPraisePhraseAtIndex(language, roll).catch(() => {});
+        let speechMs: number | null = null;
+        if (roll < 3) {
+          // wait briefly for the clip to start so its length is known; a slow load falls back to the 3 s minimum
+          speechMs = await Promise.race([
+            playPraisePhraseAtIndex(language, roll).catch(() => null),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 700)),
+          ]);
+        }
+        setHoldMs(praiseHoldMs(speechMs));
       }
       setShowCelebration(true);
     } catch (error) {
@@ -284,9 +295,10 @@ export default function StrategiesScreen() {
         avatarType={currentStudent?.avatar_type || 'preset'}
         avatarPreset={currentStudent?.avatar_preset}
         avatarCustom={currentStudent?.avatar_custom}
+        holdMs={holdMs}
         onComplete={() => {
           setShowCelebration(false);
-          router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '', checkinLogId } });
+          router.replace({ pathname: '/student/rewards', params: { strategiesUsed: selectedStrategies.length.toString(), hasComment: comment.trim() ? 'true' : 'false', zone, fromFamily: fromFamily || '', location: location || '', returnTo: returnTo || '', checkinLogId, holdMs: String(holdMs) } });
         }}
         translations={{
           well_done: t('well_done') || t('well_done')||'Well Done',
