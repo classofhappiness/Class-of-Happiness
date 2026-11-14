@@ -1118,6 +1118,7 @@
   "teacher_feature_7": "Biblioteca de estrategias",
   "teacher_feature_8": "10 idiomas disponibles",
   "try_again": "Intentar de Nuevo",
+  "classrooms_load_failed": "No se pudieron cargar las clases",
   "help_request_hint": "Toca el icono de la mano en cualquier ayudante para pedir apoyo a tu profesor o a tu padre/madre.",
   "cancel_subscription_title": "¿Cancelar la suscripción?",
   "cancel_subscription_desc": "Mantendrás acceso completo hasta el {date}, después tu cuenta pasará al plan gratuito. Todo tu progreso, criaturas y datos existentes se mantienen exactamente igual.",

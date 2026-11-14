@@ -1133,6 +1133,7 @@
   "teacher_feature_7": "Libreria di strategie",
   "teacher_feature_8": "10 lingue supportate",
   "try_again": "Riprova",
+  "classrooms_load_failed": "Impossibile caricare le classi",
   "help_request_hint": "Tocca l'icona della mano su un aiutante per chiedere supporto al tuo insegnante o a un genitore.",
   "cancel_subscription_title": "Annullare l'abbonamento?",
   "cancel_subscription_desc": "Manterrai l'accesso completo fino al {date}, poi il tuo account passerà al piano gratuito. Tutti i tuoi progressi, creature e dati esistenti rimangono esattamente come sono.",

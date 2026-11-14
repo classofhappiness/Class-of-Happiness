@@ -1668,6 +1668,7 @@
   "trial_started_msg": "सभी सुविधाएं देखने के लिए आपके पास {days} दिन मुफ़्त हैं। किसी क्रेडिट कार्ड की ज़रूरत नहीं।",
   "trial_started_title": "🎉 ट्रायल शुरू हो गया!",
   "try_again": "फिर कोशिश करें",
+  "classrooms_load_failed": "कक्षाएँ लोड नहीं हो सकीं",
   "try_different_search": "अलग खोज करके देखें",
   "try_everything_free": "सब कुछ मुफ़्त में आज़माएं",
   "type_label": "प्रकार:",

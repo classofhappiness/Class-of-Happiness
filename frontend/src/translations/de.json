@@ -1133,6 +1133,7 @@
   "teacher_feature_7": "Strategiebibliothek",
   "teacher_feature_8": "10 Sprachen verfügbar",
   "try_again": "Erneut Versuchen",
+  "classrooms_load_failed": "Klassen konnten nicht geladen werden",
   "help_request_hint": "Tippe auf das Handsymbol bei einem Helfer, um deine Lehrkraft oder ein Elternteil um Unterstützung zu bitten.",
   "cancel_subscription_title": "Abo kündigen?",
   "cancel_subscription_desc": "Du behältst vollen Zugriff bis zum {date}, danach wechselt dein Konto zum kostenlosen Plan. Dein gesamter Fortschritt, deine Kreaturen und Daten bleiben genau erhalten.",

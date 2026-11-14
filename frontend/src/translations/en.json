@@ -1578,6 +1578,7 @@
   "trial_started_msg": "You have {days} days free to explore all features. No credit card needed.",
   "trial_started_title": "🎉 Trial Started!",
   "try_again": "Try Again",
+  "classrooms_load_failed": "Couldn't load classrooms",
   "try_different_search": "Try a different search",
   "try_everything_free": "Try Everything Free",
   "type_label": "Type:",

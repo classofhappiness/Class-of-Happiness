@@ -1,4 +1,5 @@
 import * as LANG_TRANSLATIONS from '../translations';
+import { classroomAccess, classroomsStillFresh, isAuthTransitionError } from '../utils/classroomRefresh';
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { startSupportRequestsPoller, stopSupportRequestsPoller } from '../utils/supportRequestsPoller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -77,6 +78,8 @@ interface AppContextType {
   // Data
   students: Student[];
   classrooms: Classroom[];
+  // S10: true when the last classroom fetch failed for a real reason (not an auth transition); cleared by the next success.
+  classroomsError: boolean;
   presetAvatars: PresetAvatar[];
   currentStudent: Student | null;
   currentClassroom: Classroom | null;
@@ -381,6 +384,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const authRef = useRef<{ isAuthenticated: boolean; user: User | null }>({ isAuthenticated: false, user: null });
   authRef.current = { isAuthenticated, user };
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [classroomsError, setClassroomsError] = useState(false);
   const [presetAvatars, setPresetAvatars] = useState<PresetAvatar[]>([]);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [currentClassroom, setCurrentClassroom] = useState<Classroom | null>(null);
@@ -544,45 +548,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // refreshStudents (see that function's own comment for the full rationale) - a plain
   // refreshClassrooms() within 30s of the last successful fetch is now a no-op;
   // refreshClassrooms({force:true}) always does a real fetch (used by pull-to-refresh).
-  const CLASSROOMS_TTL_MS = 30000;
   const lastClassroomsFetchAtRef = useRef<number>(0);
   const refreshClassroomsInFlightRef = useRef<Promise<void> | null>(null);
   const refreshClassrooms = async (options?: { force?: boolean }) => {
-    if (!options?.force && Date.now() - lastClassroomsFetchAtRef.current < CLASSROOMS_TTL_MS) return;
+    if (classroomsStillFresh(lastClassroomsFetchAtRef.current, Date.now(), options?.force)) return;
     if (refreshClassroomsInFlightRef.current) return refreshClassroomsInFlightRef.current;
-    const promise = doRefreshClassrooms().finally(() => {
+    const promise = doRefreshClassrooms().then((ok) => {
+      // S10: the 30 s window starts only after a real successful fetch.
+      if (ok) lastClassroomsFetchAtRef.current = Date.now();
+    }).finally(() => {
       refreshClassroomsInFlightRef.current = null;
-      lastClassroomsFetchAtRef.current = Date.now();
     });
     refreshClassroomsInFlightRef.current = promise;
     return promise;
   };
-  const doRefreshClassrooms = async () => {
-    if (!isAuthenticated) return; // ✅ Don't fetch if not logged in
+  // Returns true only when a real fetch succeeded.
+  const doRefreshClassrooms = async (): Promise<boolean> => {
+    if (!isAuthenticated) return false; // ✅ Don't fetch if not logged in
     // Real fix (build 26, Sep 6), same family as refreshStudents above: GET /classrooms is
-    // teacher/school_admin/superadmin-only server-side. A parent account always got back a
-    // silent 403 here (classrooms just stayed [] - noted as a side effect in A86), but this
-    // call ran unconditionally from the background loader for every authenticated role, so
-    // the 403 - and its console.error - fired every app load for a parent, surfacing as a
-    // LogBox crash in Expo Go. Parent/family roles skip the call entirely now.
-    const isParentUser = user?.role === 'parent' || user?.role === 'family' || (!user?.role);
-    if (isParentUser) { setClassrooms([]); return; }
+    // teacher/school_admin/superadmin-only server-side, so a parent account skips the call.
+    // S10: the role must be KNOWN. While the account is still loading (auth transition) user.role is empty - that used to
+    // be treated as a parent, which cleared the list and stamped the 30 s window, so a teacher could open the app and see no classrooms.
+    const access = classroomAccess(user);
+    if (access === 'unknown') return false;
+    if (access === 'parent') { setClassrooms([]); setClassroomsError(false); return true; }
     try {
       const data = await classroomsApi.getAll();
       setClassrooms(data);
+      setClassroomsError(false);
+      return true;
     } catch (error) {
-      // Silently ignore auth errors
-      if (!String(error).includes('401') && !String(error).includes('authenticated')) {
+      if (!isAuthTransitionError(error)) {
         console.error('Error fetching classrooms:', error);
+        setClassroomsError(true);   // shown on the dashboard with a Retry button
       }
-      // Real fix Sep 14 (Marisa build-26, S10): this used to wipe classrooms to [] on ANY
-      // fetch failure, including a transient one (Railway cold start, a brief network blip).
-      // teacher/dashboard.tsx's classroom-chip banner only renders while classrooms.length >
-      // 0 and re-fetches via useFocusEffect - so one bad fetch hid the banner for the rest of
-      // that visit, only recovering on a full navigate-away-and-back (the next focus event) -
-      // exactly the "disappears until the user fully exits the page" bug reported. Keep the
-      // last-known-good list on a transient failure instead; only the isParentUser branch
-      // above should ever legitimately clear it.
+      // Keep the last-known-good list on any failure (Real fix Sep 14, S10): a transient failure never wipes it.
+      return false;
     }
   };
 
@@ -1043,6 +1044,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setStudentsStatus('idle');
     lastStudentsFetchAtRef.current = 0;
     setClassrooms([]);
+    setClassroomsError(false);
     setCurrentStudent(null);
   };
 
@@ -1332,6 +1334,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Data
         students,
         classrooms,
+        classroomsError,
         presetAvatars,
         currentStudent,
         currentClassroom,

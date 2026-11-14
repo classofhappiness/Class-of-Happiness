@@ -1668,6 +1668,7 @@
   "trial_started_msg": "你有 {days} 天可以免费体验全部功能，无需信用卡。",
   "trial_started_title": "🎉 试用已开始！",
   "try_again": "重试",
+  "classrooms_load_failed": "无法加载班级",
   "try_different_search": "换个搜索词试试",
   "try_everything_free": "免费体验全部功能",
   "type_label": "类型：",

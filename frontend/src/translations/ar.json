@@ -1668,6 +1668,7 @@
   "trial_started_msg": "لديك {days} أيام مجانية لاستكشاف جميع الميزات. لا حاجة لبطاقة ائتمان.",
   "trial_started_title": "🎉 بدأت الفترة التجريبية!",
   "try_again": "حاول مرة أخرى",
+  "classrooms_load_failed": "تعذر تحميل الفصول",
   "try_different_search": "جرّب بحثًا مختلفًا",
   "try_everything_free": "جرّب كل شيء مجانًا",
   "type_label": "النوع:",

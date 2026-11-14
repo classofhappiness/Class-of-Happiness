@@ -106,7 +106,7 @@ export default function TeacherDashboardScreen() {
   const { width } = useWindowDimensions();
   const router = useRouter();
   const currentPath = usePathname();
-  const { user, students, classrooms, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription, language } = useApp();
+  const { user, students, classrooms, classroomsError, presetAvatars, refreshStudents, refreshClassrooms, t, hasActiveSubscription, language } = useApp();
 
   // CRITICAL security fix Aug 26 (item 3): role-gating - confirmed live that ANY
   // authenticated account could open either dashboard regardless of its real role, zero
@@ -570,6 +570,14 @@ ${t('students_enter_code_join_class') || 'Students enter this when creating thei
             </TouchableOpacity>
           ))}
         </View>
+        {classroomsError && (
+          <View style={{flexDirection:'row', alignItems:'center', justifyContent:'center', gap:10, paddingHorizontal:12, paddingVertical:6}}>
+            <Text style={{fontSize:13, color:'#B71C1C', fontWeight:'600'}}>{t('classrooms_load_failed')||"Couldn't load classrooms"}</Text>
+            <TouchableOpacity onPress={() => refreshClassrooms({ force: true })} style={{paddingHorizontal:12, paddingVertical:6, borderRadius:14, backgroundColor:'#5C6BC0'}} accessibilityRole="button">
+              <Text style={{fontSize:13, color:'white', fontWeight:'700'}}>{t('try_again')||'Try Again'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {(classrooms && classrooms.length > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{flexDirection:'row', paddingHorizontal:12, gap:6, alignItems:'center', paddingTop:4, paddingBottom:2}}>
