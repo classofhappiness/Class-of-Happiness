@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Share, TextInput, Modal } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -89,6 +90,17 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
     setGenerating(false);
   };
 
+  // S09: copies ONLY the code (no sentence around it), so it pastes cleanly into the Submit a Creature box.
+  const [copied, setCopied] = useState(false);
+  const copyCode = async () => {
+    if (!code) return;
+    try {
+      await Clipboard.setStringAsync(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+
   const shareCode = () => {
     if (!code) return;
     Share.share({
@@ -153,6 +165,10 @@ export const CreatureManagement: React.FC<Props> = ({ role }) => {
             <TouchableOpacity style={[s.btn, { backgroundColor: '#4CAF50' }]} onPress={shareCode}>
               <MaterialIcons name="share" size={18} color="white" />
               <Text style={s.btnText}>{t('creature_share_code_btn') || 'Share Code'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.btn, { backgroundColor: copied ? '#388E3C' : '#7C5CBF', marginTop: 8 }]} onPress={copyCode} accessibilityRole="button">
+              <MaterialIcons name={copied ? 'check' : 'content-copy'} size={18} color="white" />
+              <Text style={s.btnText}>{copied ? (t('creature_code_copied') || 'Copied') : (t('creature_copy_code_btn') || 'Copy Code')}</Text>
             </TouchableOpacity>
           </View>
         )}

@@ -390,6 +390,8 @@
   "creature_scope_question": "它应该在哪里可见？",
   "creature_scope_title": "谁可以看到它？",
   "creature_share_code_btn": "分享代码",
+  "creature_copy_code_btn": "复制代码",
+  "creature_code_copied": "已复制",
   "creature_share_message": "Class of Happiness 生物代码：{code}\n\n在\"提交生物\"中使用此代码发送你的生物画作。代码 30 天后过期。",
   "creature_stage": "阶段",
   "creature_status_approved": "已批准",

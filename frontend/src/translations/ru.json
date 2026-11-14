@@ -390,6 +390,8 @@
   "creature_scope_question": "Кто сможет это увидеть?",
   "creature_scope_title": "Кто может это увидеть?",
   "creature_share_code_btn": "Поделиться кодом",
+  "creature_copy_code_btn": "Скопировать код",
+  "creature_code_copied": "Скопировано",
   "creature_share_message": "Код существа Class of Happiness: {code}\n\nИспользуйте этот код в разделе «Отправить существо», чтобы отправить свой рисунок. Срок действия кода — 30 дней.",
   "creature_stage": "Этап",
   "creature_status_approved": "Одобрено",

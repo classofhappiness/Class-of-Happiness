@@ -1827,6 +1827,8 @@
   "creature_generating": "Generazione…",
   "creature_code_expiry_note": "Scade tra 30 giorni · fino a 10 studenti possono usarlo",
   "creature_share_code_btn": "Condividi codice",
+  "creature_copy_code_btn": "Copia codice",
+  "creature_code_copied": "Copiato",
   "creature_pending_title": "Creature in attesa",
   "creature_none_pending": "Nessuna creatura in attesa di revisione al momento.",
   "creature_my_classroom_submissions_title": "Invii della mia classe",

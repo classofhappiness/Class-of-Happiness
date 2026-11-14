@@ -370,6 +370,8 @@
   "creature_scope_question": "Where should it be available?",
   "creature_scope_title": "Who can see it?",
   "creature_share_code_btn": "Share Code",
+  "creature_copy_code_btn": "Copy Code",
+  "creature_code_copied": "Copied",
   "creature_share_message": "Class of Happiness creature code: {code}\n\nUse this code in \"Submit a Creature\" to send in your creature drawing. Code expires in 30 days.",
   "creature_stage": "Stage",
   "creature_status_approved": "Approved",

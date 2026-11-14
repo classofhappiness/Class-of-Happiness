@@ -390,6 +390,8 @@
   "creature_scope_question": "أين ينبغي أن يكون متاحًا؟",
   "creature_scope_title": "من يمكنه رؤيته؟",
   "creature_share_code_btn": "مشاركة الرمز",
+  "creature_copy_code_btn": "نسخ الرمز",
+  "creature_code_copied": "تم النسخ",
   "creature_share_message": "رمز مخلوق Class of Happiness: {code}\n\nاستخدم هذا الرمز في \"إرسال مخلوق\" لإرسال رسمة مخلوقك. تنتهي صلاحية الرمز خلال 30 يوماً.",
   "creature_stage": "المرحلة",
   "creature_status_approved": "تمت الموافقة",

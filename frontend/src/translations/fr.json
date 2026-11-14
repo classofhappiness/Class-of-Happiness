@@ -1827,6 +1827,8 @@
   "creature_generating": "Génération…",
   "creature_code_expiry_note": "Expire dans 30 jours · jusqu'à 10 élèves peuvent l'utiliser",
   "creature_share_code_btn": "Partager le code",
+  "creature_copy_code_btn": "Copier le code",
+  "creature_code_copied": "Copié",
   "creature_pending_title": "Créatures en attente",
   "creature_none_pending": "Aucune créature en attente d'examen pour le moment.",
   "creature_my_classroom_submissions_title": "Soumissions de ma classe",
