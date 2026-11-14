@@ -2471,5 +2471,13 @@
   "wl_email_failed": "No pudimos enviar el correo. Inténtalo de nuevo.",
   "wl_email_no_address": "Esta cuenta no tiene dirección de correo.",
   "wl_use_other_way": "Usar otra forma",
-  "wl_email_resend": "Enviar un código nuevo"
+  "wl_email_resend": "Enviar un código nuevo",
+  "country_choose": "Elige tu país",
+  "country_search": "Buscar",
+  "country_prefer_not": "Prefiero no decirlo",
+  "country_not_now": "Ahora no",
+  "country_save": "Guardar",
+  "country_prompt_title": "¿Dónde vives?",
+  "country_privacy_note": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios.",
+  "country_prompt_body": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios."
 }

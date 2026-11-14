@@ -2334,5 +2334,13 @@
   "wl_email_failed": "We couldn't send the email. Please try again.",
   "wl_email_no_address": "This account has no email address.",
   "wl_use_other_way": "Use another way",
-  "wl_email_resend": "Send a new code"
+  "wl_email_resend": "Send a new code",
+  "country_choose": "Choose your country",
+  "country_search": "Search",
+  "country_prefer_not": "Prefer not to say",
+  "country_not_now": "Not now",
+  "country_save": "Save",
+  "country_prompt_title": "Where are you based?",
+  "country_privacy_note": "Optional. Your country is used only for anonymous totals and is never shown publicly or to other users.",
+  "country_prompt_body": "Optional. Your country is used only for anonymous totals and is never shown publicly or to other users."
 }

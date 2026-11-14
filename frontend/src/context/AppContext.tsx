@@ -66,7 +66,9 @@ interface AppContextType {
   // the local user object's has_admin_pin flag so the UI reflects it immediately.
   setAdminPin: (pin: string) => Promise<void>;
   loginWithGoogle: (googleAccessToken: string) => Promise<void>;
-  signupWithEmail: (email: string, password: string, name: string, role: 'teacher' | 'parent') => Promise<void>;
+  signupWithEmail: (email: string, password: string, name: string, role: 'teacher' | 'parent', country?: string | null) => Promise<void>;
+  // 'Where are you based?': ISO-2 code, 'none' (Prefer not to say) or 'dismiss' (Not now)
+  saveCountry: (country: string) => Promise<void>;
   verifyEmail: (code: string) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   logout: () => Promise<void>;
@@ -904,6 +906,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
+  // Saves the country answer and clears the one-time prompt flag locally right away (the server remembers it too).
+  const saveCountry = async (country: string) => {
+    const res = await authApi.setCountry(country);
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, country_prompt_needed: false, ...(res?.country_code ? { country_code: res.country_code } : {}) } as any;
+      AsyncStorage.setItem('user_data', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  };
+
   const loginWithGoogle = async (googleAccessToken: string) => {
     try {
       setIsLoading(true);
@@ -945,13 +958,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // re-throws on failure instead of swallowing it into an Alert.alert - the signup screen shows
   // the real error inline next to the field it applies to (e.g. "email already exists" should
   // point the user at Sign In, not just dismiss into nothing).
-  const signupWithEmail = async (email: string, password: string, name: string, role: 'teacher' | 'parent') => {
+  const signupWithEmail = async (email: string, password: string, name: string, role: 'teacher' | 'parent', country?: string | null) => {
     setIsLoading(true);
     try {
       const response = await fetch('https://class-of-happiness-production.up.railway.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, role }),
+        body: JSON.stringify({ email, password, name, role, ...(country ? { country } : {}) }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -1310,6 +1323,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setAdminPin,
         loginWithGoogle,
         signupWithEmail,
+        saveCountry,
         verifyEmail,
         resendVerificationEmail,
         logout,

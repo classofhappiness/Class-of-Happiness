@@ -2323,5 +2323,13 @@
   "wl_email_failed": "邮件发送失败，请重试。",
   "wl_email_no_address": "此账户没有邮箱地址。",
   "wl_use_other_way": "使用其他方式",
-  "wl_email_resend": "发送新的验证码"
+  "wl_email_resend": "发送新的验证码",
+  "country_choose": "选择你的国家",
+  "country_search": "搜索",
+  "country_prefer_not": "不想说",
+  "country_not_now": "暂时不要",
+  "country_save": "保存",
+  "country_prompt_title": "你在哪个国家？",
+  "country_privacy_note": "可选。你的国家仅用于匿名统计总数，绝不会公开显示，也不会向其他用户显示。",
+  "country_prompt_body": "可选。你的国家仅用于匿名统计总数，绝不会公开显示，也不会向其他用户显示。"
 }

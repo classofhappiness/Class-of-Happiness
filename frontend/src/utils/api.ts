@@ -77,6 +77,10 @@ export interface User {
   // because no screen had read it yet. Used by admin/dashboard.tsx's unreachable-admin
   // notice to know whether THIS admin can actually receive a push right now.
   push_token?: string | null;
+  // Country ("Where are you based?"): ISO-2 code, or 'XX' for "Prefer not to say". country_prompt_needed is computed by
+  // the server (parent/teacher with no country who hasn't answered or dismissed the one-time prompt).
+  country_code?: string | null;
+  country_prompt_needed?: boolean;
 }
 
 export interface Student {
@@ -242,6 +246,10 @@ export const authApi = {
   
   updateLanguage: (language: string): Promise<{ language: string }> =>
     apiRequest('/auth/update-language', { method: 'POST', body: JSON.stringify({ language }) }),
+
+  // country: ISO-2 code, 'none' (Prefer not to say) or 'dismiss' (Not now: just stop asking).
+  setCountry: (country: string): Promise<{ status: string; country_code: string | null }> =>
+    apiRequest('/auth/country', { method: 'POST', body: JSON.stringify({ country }) }),
 
   // Real feature Sep 16 (admin login: self-set persistent PIN): authenticated (uses the
   // session just issued by verify-login-code/verify-login-pin) - same pattern as

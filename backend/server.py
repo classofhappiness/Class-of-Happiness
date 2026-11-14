@@ -41,6 +41,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Supabase
 from supabase import create_client, Client
+from countries import ISO_COUNTRIES, COUNTRY_DECLINED, country_name as _country_name, country_code_from_value as _country_code_from_value
 from timeparse import fromiso as _fromiso, fromiso_or_none as _fromiso_or_none   # one parser for every Supabase timestamp (see timeparse.py)
 from supabase.client import ClientOptions
 
@@ -3112,6 +3113,38 @@ async def create_download_link(request: Request):
     host = request.headers.get("host") or request.url.netloc
     return {"url": f"{proto}://{host}{full_path}?{qs}", "path_and_query": f"{full_path}?{qs}", "expires_in": _DL_TTL_SECONDS}
 
+def _user_country_iso(user: dict):
+    """The user's own country as an ISO-2 code, or None. country_code first (the picker's value;
+    "XX" = chose "Prefer not to say" and is treated as unknown), then the older free-text
+    school_country (English names such as "Australia") mapped through the ISO list."""
+    if not user:
+        return None
+    code = (user.get("country_code") or "").strip().upper()
+    if code and code != COUNTRY_DECLINED and code in ISO_COUNTRIES:
+        return code
+    if code == COUNTRY_DECLINED:
+        return None
+    return _country_code_from_value(user.get("school_country"))
+
+
+def _country_prompt_needed(user: dict) -> bool:
+    """One-time "Where are you based?" prompt: parent/teacher accounts with no country at all that
+    haven't answered or dismissed it yet. A missing column (migration not applied) means False."""
+    if not user or user.get("role") not in ("parent", "teacher"):
+        return False
+    if user.get("country_prompt_seen_at") or (user.get("country_code") or "").strip():
+        return False
+    return _user_country_iso(user) is None
+
+
+def _submission_country(requested, user: dict) -> str:
+    """Country stamped on a creature submission: an explicit valid ISO code from the client wins, then the
+    submitter's country_code, then their school_country (mapped to ISO), and only then PT. The old code read a
+    users.country column that doesn't exist, so every submission silently became PT."""
+    code = _country_code_from_value(requested) if isinstance(requested, str) and len(requested.strip()) == 2 else None
+    return code or _user_country_iso(user) or "PT"
+
+
 def _public_user(user: dict, include_push_flag: bool = True) -> dict:
     """CRITICAL security fix Aug 26: /auth/me, /auth/email-login, and google_auth all used to
     return the raw user row straight from the DB - including portal_password (a real bcrypt
@@ -3143,6 +3176,7 @@ def _public_user(user: dict, include_push_flag: bool = True) -> dict:
     # set False. Frontend force-redirects to /auth/verify-email-required on False, same
     # shape as the has_password gate just above.
     safe["email_verified"] = safe.get("email_verified", True)
+    safe["country_prompt_needed"] = _country_prompt_needed(user)
     # Oct 11: school admins / admins only - whether THIS account has at least one registered push token
     # (the admin app's "teachers can't reach you yet" banner). One small lookup, never the token itself.
     if include_push_flag and safe.get("role") in ("school_admin", "admin") and safe.get("user_id"):
@@ -14730,7 +14764,7 @@ async def get_creature_submission_options(request: Request, real_student_id: Opt
         "has_classroom": bool(classroom_id),
         "has_school": bool(school_name),
         "school_name": school_name,
-        "default_country": user.get("country") or "PT",
+        "default_country": _user_country_iso(user) or "PT",
     }
 
 # Real feature Sep 18 (B3, AI moderation - approved as flag-only, Google Cloud Vision
@@ -14920,7 +14954,7 @@ async def submit_creature(request: Request):
         "student_name": user.get("name", "Student"),
         "year_group": body.get("year_group", user.get("year_group", "")),
         "school_name": user.get("school_name", body.get("school_name", "")),
-        "country": body.get("country", user.get("country", "PT")),
+        "country": _submission_country(body.get("country"), user),
         "emotion_colour": emotion,
         "creature_name": body.get("name", "My Creature")[:50],
         "description": body.get("description", "")[:200],
@@ -24122,6 +24156,38 @@ async def update_user_language(request: Request):
     return {"status": "ok", "language": lang}
 
 
+@api_router.post("/auth/country")
+async def set_user_country(request: Request):
+    """Save "Where are you based?" - ISO-2 code, "none" (Prefer not to say) or "dismiss" (Not now: just stop
+    asking). school_admin/superadmin accounts keep their school profile country untouched. For everyone else the
+    English name is also written to school_country so the older readers (portal, stats) keep working."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    raw = body.get("country") if isinstance(body, dict) else None
+    now = datetime.now(timezone.utc).isoformat()
+    keep_school = user.get("role") in ("school_admin", "admin", "superadmin")
+    if isinstance(raw, str) and raw.strip().lower() == "dismiss":
+        update = {"country_prompt_seen_at": now}
+    elif isinstance(raw, str) and raw.strip().lower() in ("none", "xx"):
+        update = {"country_code": COUNTRY_DECLINED, "country_prompt_seen_at": now}
+    else:
+        code = _country_code_from_value(raw) if isinstance(raw, str) else None
+        if not code:
+            raise HTTPException(status_code=400, detail="Unknown country")
+        update = {"country_code": code, "country_prompt_seen_at": now}
+        if not keep_school:
+            update["school_country"] = _country_name(code)
+    try:
+        supabase.table("users").update(update).eq("user_id", user["user_id"]).execute()
+    except Exception as e:
+        logger.warning(f"[auth/country] could not save country for {user['user_id']}: {e}")
+        raise HTTPException(status_code=503, detail="Could not save right now")
+    _auth_cache_evict_user(user["user_id"])
+    return {"status": "ok", "country_code": update.get("country_code")}
+
+
 @api_router.get("/family/members/{member_id}/checkins")
 async def get_family_member_checkins(member_id: str, request: Request, days: int = 7):
     """Get check-ins for a family member - from feeling_logs if linked to student"""
@@ -26828,6 +26894,10 @@ async def email_signup(request: Request):
     password = body.get("password", "")
     name = body.get("name", "").strip()
     role = body.get("role", "").strip().lower()
+    # Optional country (ISO-2, or "none"/"XX" for "Prefer not to say"); anything unrecognised is ignored, never an error.
+    raw_country = body.get("country")
+    signup_country = _country_code_from_value(raw_country) if isinstance(raw_country, str) else None
+    signup_declined = isinstance(raw_country, str) and raw_country.strip().lower() in ("none", "xx")
 
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Valid email required")
@@ -26864,6 +26934,22 @@ async def email_signup(request: Request):
         "email_code": verify_code,
         "email_code_expires": (datetime.now(timezone.utc) + timedelta(minutes=VERIFY_CODE_MINUTES)).isoformat(),
     }
+    country_fields = {}
+    if signup_country:
+        country_fields = {"country_code": signup_country, "school_country": _country_name(signup_country),
+                          "country_prompt_seen_at": datetime.now(timezone.utc).isoformat()}
+    elif signup_declined:
+        country_fields = {"country_code": COUNTRY_DECLINED, "country_prompt_seen_at": datetime.now(timezone.utc).isoformat()}
+    if country_fields:
+        # country_code / country_prompt_seen_at come from the 01_users_country.sql migration; if it hasn't landed
+        # yet, signup must still work, so probe once and drop them (school_country already exists).
+        try:
+            supabase.table("users").select("country_code").limit(1).execute()
+            new_user.update(country_fields)
+        except Exception as e:
+            logger.warning(f"[email_signup] country_code column not available yet, skipping country: {e}")
+            if "school_country" in country_fields:
+                new_user["school_country"] = country_fields["school_country"]
     try:
         supabase.table("users").insert(new_user).execute()
         sent, detail = _send_email_code(email, verify_code, purpose="verify", lang=_email_lang(None, (body.get("lang") or body.get("language")) if isinstance(body, dict) else None))

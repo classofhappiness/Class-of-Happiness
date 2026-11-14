@@ -9,11 +9,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { SecureField } from '../../src/components/SecureField';
+import { CountryPicker } from '../../src/components/CountryPicker';
+import { deviceRegion } from '../../src/utils/countryNames';
 
 export default function SignupScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signupWithEmail, t } = useApp();
+  const { signupWithEmail, t, language } = useApp();
+  // Optional; pre-filled from the phone's region, 'none' = Prefer not to say.
+  const [country, setCountry] = useState<string | null>(() => deviceRegion());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +54,7 @@ export default function SignupScreen() {
     setError('');
     setLoading(true);
     try {
-      await signupWithEmail(trimmedEmail, password, trimmedName, role);
+      await signupWithEmail(trimmedEmail, password, trimmedName, role, country);
       router.replace(role === 'teacher' ? '/teacher/dashboard' : '/parent/dashboard');
     } catch (e) {
       setError(e instanceof Error ? e.message : (t('signup_generic_error') || 'Could not create your account. Please try again.'));
@@ -157,6 +161,10 @@ export default function SignupScreen() {
               returnKeyType="go"
             />
 
+            <Text style={styles.label}>{t('country_label') || 'Country'}</Text>
+            <CountryPicker value={country} onChange={setCountry} language={language} t={t} />
+            <Text style={styles.countryNote}>{t('country_privacy_note') || 'Optional. Your country is used only for anonymous totals and is never shown publicly or to other users.'}</Text>
+
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
@@ -206,6 +214,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1, shadowRadius: 8, marginBottom: 20,
   },
   label: { fontSize: 14, fontWeight: '600', color: '#555', marginBottom: 8 },
+  countryNote: { fontSize: 12, color: '#777', lineHeight: 17, marginTop: 6, marginBottom: 14 },
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   roleButton: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,

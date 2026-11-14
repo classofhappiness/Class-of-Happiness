@@ -19,6 +19,8 @@ import { useWellbeingSharing } from '../src/utils/useWellbeingSharing';
 import { SecureField } from '../src/components/SecureField';
 import { PinConfirmModal } from '../src/components/PinConfirmModal';
 import { CollapsibleCard } from '../src/components/CollapsibleCard';
+import { CountryPicker } from '../src/components/CountryPicker';
+import { COUNTRIES } from '../src/constants/countries';
 import { ReadingFontSettings } from '../src/components/ReadingFontSettings';
 import { RTL_RESTART_FLOW_READY, needsRtlRestart, applyRtlAndRestart } from '../src/utils/rtl';
 
@@ -91,8 +93,16 @@ export default function SettingsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated, setAdminPin } = useApp();
+  const { user, language, setLanguage, logout, t, hasActiveSubscription, translations, checkAuth, isAuthenticated, setAdminPin, saveCountry } = useApp();
   const [showLanguages, setShowLanguages] = useState(false);
+  // ISO code, 'none' (Prefer not to say) or null; falls back to the older free-text school_country name
+  const [countryValue, setCountryValue] = useState<string | null>(() => {
+    const cc = (user as any)?.country_code;
+    if (cc === 'XX') return 'none';
+    if (cc) return cc;
+    const nm = String((user as any)?.school_country || '').trim().toLowerCase();
+    return COUNTRIES.find(c => c.name.toLowerCase() === nm)?.code || null;
+  });
   const [voiceEnabled, setVoiceEnabledState] = useState(true);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useDeviceNotificationsEnabled();
 
@@ -956,6 +966,20 @@ export default function SettingsScreen() {
                   : (t('switch_to_teacher') || 'Switch to Teacher account')}
             </Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Country (parents and teachers): same value as the one-time "Where are you based?" prompt */}
+      {(user?.role === 'teacher' || user?.role === 'parent') && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('country_label') || 'Country'}</Text>
+          <CountryPicker
+            value={countryValue}
+            onChange={(v) => { setCountryValue(v); saveCountry(v).catch(() => Alert.alert(t('error') || 'Error', t('could_not_save') || 'Could not save.')); }}
+            language={language}
+            t={t}
+          />
+          <Text style={{ fontSize: 12, color: '#777', lineHeight: 17, marginTop: 6 }}>{t('country_privacy_note') || 'Optional. Your country is used only for anonymous totals and is never shown publicly or to other users.'}</Text>
         </View>
       )}
 

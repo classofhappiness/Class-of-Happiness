@@ -15,6 +15,7 @@ import { Fredoka_700Bold } from '@expo-google-fonts/fredoka';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SplashAnimation } from '../src/components/SplashAnimation';
+import { CountryPromptGate } from '../src/components/CountryPromptGate';
 import { markSplashFinished } from '../src/utils/launchState';
 import { HeaderLogo } from '../src/components/ColourCycleLogo';
 import * as Notifications from 'expo-notifications';
@@ -748,6 +749,8 @@ function AppContent() {
           }}
         />
       </Stack>
+      {/* One-time "Where are you based?" for parent/teacher accounts with no country (decided server-side). */}
+      {!showSplashAnim && <CountryPromptGate />}
       {showSplashAnim && <SplashAnimation appReady={!isLoading && reading.loaded} onFinish={() => { markSplashFinished(); setShowSplashAnim(false); }} />}
     </>
   );
