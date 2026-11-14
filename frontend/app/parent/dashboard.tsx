@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { showPermissionAlert } from '../../src/utils/permissionAlert';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TranslatedHeader } from '../../src/components/TranslatedHeader';
@@ -52,7 +53,7 @@ const pickImageWithChoice = (
         onPress: async () => {
           try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!perm.granted) { Alert.alert(t('permission_needed') || 'Permission needed', t('allow_library_access_settings_short') || 'Allow photo library access in Settings.'); return; }
+            if (!perm.granted) { showPermissionAlert(t); return; }
             const result = await ImagePicker.launchImageLibraryAsync({
               allowsEditing: true, aspect: [1,1], quality: 0.4, base64: true,
               mediaTypes: ImagePicker.MediaTypeOptions.Images,

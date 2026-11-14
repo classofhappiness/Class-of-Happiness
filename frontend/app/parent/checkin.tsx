@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showPermissionAlert } from '../../src/utils/permissionAlert';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -232,7 +233,7 @@ export default function FamilyCheckInScreen() {
           onPress: async () => {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
-              Alert.alert(t('permission_needed') || 'Permission needed', t('allow_library_access_settings') || 'Please allow photo library access in Settings.');
+              showPermissionAlert(t);
               return;
             }
             const result = await ImagePicker.launchImageLibraryAsync({

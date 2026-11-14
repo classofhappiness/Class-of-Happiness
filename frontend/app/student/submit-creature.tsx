@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showPermissionAlert } from '../../src/utils/permissionAlert';
 import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { AppTextInput as TextInput } from '../../src/components/AppTextInput';
@@ -133,7 +134,7 @@ export default function SubmitCreatureScreen() {
     const perm = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== 'granted') { Alert.alert(t('permission_needed') || 'Permission needed'); return; }
+    if (perm.status !== 'granted') { showPermissionAlert(t, source); return; }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1,1], quality: 0.7 })
       : await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1,1], quality: 0.7 });
