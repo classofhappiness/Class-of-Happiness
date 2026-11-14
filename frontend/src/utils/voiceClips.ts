@@ -55,6 +55,9 @@ export const setVoiceEnabled = async (enabled: boolean) => {
   try { await AsyncStorage.setItem(VOICE_ENABLED_KEY, enabled ? 'true' : 'false'); } catch (e) { console.error('[utils/voiceClips:55]', e); }
 };
 
+// Clips whose audio file was replaced in place (leading silence and a click trimmed off): "<language>/<clip key>" -> version.
+const CLIP_VERSIONS: Record<string, number> = { 'en/green_2': 2, 'it/green_2': 2 };
+
 // Fetches {clip_key: url} once per language and caches in memory. Missing keys
 // (unfinished clips, unsupported languages) are simply absent from the response.
 export const loadVoiceManifest = async (language: string): Promise<Record<string, string>> => {
@@ -65,6 +68,12 @@ export const loadVoiceManifest = async (language: string): Promise<Record<string
       const res = await fetch(`${BACKEND_URL}/api/voice-clips?language=${encodeURIComponent(language)}`);
       const data = res.ok ? await res.json() : {};
       manifestCache = data && typeof data === 'object' ? data : {};
+      // A replaced clip keeps its file name, so the cached copy on a phone is bypassed by a new query string
+      // (the same trick the creature images use). Only the clips listed in CLIP_VERSIONS get one.
+      for (const key of Object.keys(CLIP_VERSIONS)) {
+        const [lang, clip] = key.split('/');
+        if (lang === language && manifestCache[clip]) manifestCache[clip] = `${manifestCache[clip]}?v=${CLIP_VERSIONS[key]}`;
+      }
     } catch {
       manifestCache = {};
     }
@@ -237,6 +246,17 @@ export const preloadZoneAudio = async (language: string): Promise<void> => {
     // matters: warming the greeting well before this screen even mounts).
     preloadAudioUrls([...openingUrls, manifest.blue, manifest.green, manifest.yellow, manifest.red]);
   } catch (e) { console.error('[utils/voiceClips:221]', e); }
+};
+
+// S04: warms the six helper clips of the colour a child has just tapped, so the clip for whichever helper they
+// touch on the next screen is already a local file. Only that colour's six, never all 24.
+export const preloadHelperAudio = async (zone: string, language: string): Promise<void> => {
+  if (!voiceEnabled) return;
+  try {
+    const manifest = manifestLanguage === language ? manifestCache : await loadVoiceManifest(language);
+    const urls = [1, 2, 3, 4, 5, 6].map((n) => manifest[`${zone}_${n}`]).filter(Boolean) as string[];
+    if (urls.length) preloadAudioUrls(urls);
+  } catch (e) { console.error('[utils/voiceClips:helpers]', e); }
 };
 
 // Real fix Sep 24 (item1, device report - greeting plays late, root cause): NOTHING warmed

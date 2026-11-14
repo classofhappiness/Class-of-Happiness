@@ -8,7 +8,7 @@ import { Audio } from 'expo-av';
 import { useApp } from '../../src/context/AppContext';
 import { Avatar } from '../../src/components/Avatar';
 import { playButtonFeedback, playSelectFeedback, preloadSounds } from '../../src/utils/sounds';
-import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool, preloadZoneAudio } from '../../src/utils/voiceClips';
+import { loadVoiceEnabled, loadVoiceManifest, playVoiceClip, playPhraseFromPool, preloadZoneAudio, preloadHelperAudio } from '../../src/utils/voiceClips';
 import { VoiceToggleButton } from '../../src/components/VoiceToggleButton';
 import { getZoneWords } from '../../src/constants/zoneWords';
 
@@ -162,6 +162,7 @@ export default function ColourSelectionScreen() {
   const handleZoneSelect = (zone: 'blue' | 'green' | 'yellow' | 'red') => {
     playSelectFeedback();
     playVoiceClip(zone, language);
+    preloadHelperAudio(zone, language);
     router.push({ pathname: '/student/strategies', params: { zone, location: locationParam || '', fromFamily: fromFamily || '', returnTo: returnTo || '' } });
   };
 
