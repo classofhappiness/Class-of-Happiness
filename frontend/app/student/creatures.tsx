@@ -17,6 +17,7 @@ import {
   ScrollView,
   Animated,
   Easing,
+  AccessibilityInfo,
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -28,7 +29,7 @@ import { TranslatedHeader } from '../../src/components/TranslatedHeader';
 import { AnimatedCreatureVisual, EMOJI_FIT } from '../../src/components/AnimatedCreatureVisual';
 import { CreatureDetailModal, CreatureDetailEntry } from '../../src/components/CreatureDetailModal';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from '../../src/components/EvolutionProgressBar';
-import { useDataGridColumns, gridCardWidth } from '../../src/utils/globalStyles';
+import { useDataGridColumns, gridCardWidth, cardWidthPx } from '../../src/utils/globalStyles';
 
 const EMOTION_COLORS: Record<string, string> = {
   green: '#4CAF73', blue: '#4A90D9', yellow: '#FFC107', red: '#E05252'
@@ -115,8 +116,16 @@ function CreatureGridCard({
   const totalStages = item.type === 'default' ? (item.stage_emojis?.length || 4) : item.max_stage;
   const reachedStages = item.type === 'default' ? item.current_stage + 1 : item.current_stage;
 
+  // S07: the active ring's pulse stands still (fully visible) when Reduce Motion is on.
+  const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
-    if (!item.is_active) return;
+    AccessibilityInfo.isReduceMotionEnabled().then(v => setReduceMotion(!!v)).catch(() => {});
+    const sub: any = AccessibilityInfo.addEventListener('reduceMotionChanged', (v: boolean) => setReduceMotion(!!v));
+    return () => sub?.remove?.();
+  }, []);
+
+  useEffect(() => {
+    if (!item.is_active || reduceMotion) { ringPulse.setValue(1); return; }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(ringPulse, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -125,7 +134,7 @@ function CreatureGridCard({
     );
     loop.start();
     return () => loop.stop();
-  }, [item.is_active]);
+  }, [item.is_active, reduceMotion]);
 
   return (
     <TouchableOpacity onPress={onPress} style={{ width: width as any, position: 'relative', padding: ACTIVE_RING_GAP + ACTIVE_RING_THICKNESS }}>
@@ -168,6 +177,8 @@ function CreatureGridCard({
             unlocked={item.current_stage > 0 || item.is_complete}
             emoji={item.type === 'default' ? item.emoji : undefined}
             imageUrl={imgUrl || undefined}
+            // S07: list cards are still (animated={false}); only the detail sheet creature moves.
+            animated={false}
             // Root cause fix Sep 27 (live feedback, item 1): was a hardcoded 64px regardless
             // of the actual card width (confirmed live math: ~138px of real available space
             // on a typical phone, over half wasted) AND animated=false ("Top Trumps cards"
@@ -227,7 +238,8 @@ export default function CreatureCollectionScreen() {
   // border:1px, each side) to land on imgWrap's actual inner size, so the creature fills it
   // properly instead of sitting small in the middle of empty space.
   const { width: screenWidth } = useWindowDimensions();
-  const cardPixelWidth = (screenWidth - 16 * 2 - 10 * 2 - 10 * (gridColumns - 1)) / gridColumns;
+  // S07: the real card width is gridCardWidth(cols) (a % of the section body), not an equal split of the free space.
+  const cardPixelWidth = cardWidthPx(screenWidth - 16 * 2 - 10 * 2, gridColumns);
   // Real fix Oct 7 (emoji clipping while animating): the old value ignored the 6px ring padding
   // each side that CreatureGridCard's TouchableOpacity adds (ACTIVE_RING_GAP + ACTIVE_RING_THICKNESS),
   // so the emoji was ~12px wider than imgWrap before it moved at all. innerSize is imgWrap's real

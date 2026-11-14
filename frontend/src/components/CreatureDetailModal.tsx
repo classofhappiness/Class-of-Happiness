@@ -668,7 +668,7 @@ const s = StyleSheet.create({
   itemsRow: { flexDirection: 'row', gap: 10 },
   itemCard: { flex: 1, backgroundColor: 'white', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8', position: 'relative', minHeight: 80 },
   itemLocked: { backgroundColor: '#F5F5F5', borderColor: '#DDD' },
-  itemEmoji: { fontSize: 26, marginBottom: 4 },
+  itemEmoji: { width: 40, height: 40, fontSize: 26, lineHeight: 40, textAlign: 'center', includeFontPadding: false, marginBottom: 4, alignSelf: 'center' },
   lockOverlay: { position: 'absolute', top: 6, right: 6, fontSize: 12 },
   itemName: { fontSize: 9, fontWeight: '600', color: '#333', textAlign: 'center' },
   itemNameLocked: { color: '#BBB' },

@@ -64,6 +64,11 @@ export function gridCardWidth(columns: number): `${number}%` {
   return `${Math.floor(100 / columns - margin)}%`;
 }
 
+// Pixel width of one card in that grid: the percentage gridCardWidth() gives, applied to the section body width.
+export function cardWidthPx(sectionWidth: number, columns: number): number {
+  return (sectionWidth * parseFloat(gridCardWidth(columns))) / 100;
+}
+
 // Column count for a grid whose card count naturally grows with data (a creature
 // collection, a strategy list, a roster) - genuinely benefits from more columns as the
 // screen widens. NOT for a fixed-count selector (e.g. exactly 4 emotion-zone buttons) -
