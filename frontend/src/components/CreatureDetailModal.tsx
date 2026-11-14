@@ -8,7 +8,7 @@ import { playButtonFeedback } from '../utils/sounds';
 import { rewardsApi, analyticsApi, ShopItem } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { pickLocalized } from '../utils/localizedText';
-import { stageNumber, stageOfTotal } from '../utils/stageProgress';
+import { stageNumber, stageOfTotal, isFinalStage } from '../utils/stageProgress';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from './EvolutionProgressBar';
 
 // Real feature Aug 22 (item 2 visual polish): the "select from a grid, see one large focused
@@ -522,7 +522,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
             </View>
 
             <Text style={s.progressLine}>
-              {localStage >= stageCount - 1
+              {isFinalStage(entry.type, localStage, stageCount)
                 ? `🏆 ${t('fully_evolved') || 'Fully evolved!'}`
                 // Real fix Sep 15 (Marisa build-26, S08): confirmed in server.py's
                 // /students/{id}/my-creatures - a DEFAULT creature's current_stage is
