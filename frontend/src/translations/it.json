@@ -403,6 +403,7 @@
   "confirm": "Conferma",
   "unlocked": "Sbloccato!",
   "stage": "Fase",
+  "stage_of_total": "Fase {n} di {total}",
   "icon": "Icona",
   "most_used": "Più Usati",
   "zone_distribution": "Distribuzione delle Emozioni",

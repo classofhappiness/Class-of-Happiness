@@ -131,7 +131,7 @@ const SheetCreature: React.FC<{ size: number; emoji?: string | null; imageUrl?: 
   // useZoneMovement depends only on zone / on / amplitude), so the loop keeps going smoothly through the cross-fade.
   // Amplitude cap: the art is at most 80% of the 138 px box (about 55 px from the centre) for photos, up to about 66 px for
   // emoji / bundled silhouettes, in a circle of radius 75: 18 px of room for photos (which the circle mask clips anyway) and 8 px otherwise.
-  const move = useZoneMovement(zone, moving && !reduceMotionOn, circleMask ? 18 : 8);
+  const move = useZoneMovement(zone, moving && !reduceMotionOn, 8);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(v => { reduceMotion.current = !!v; setReduceMotionOn(!!v); }).catch(() => {});

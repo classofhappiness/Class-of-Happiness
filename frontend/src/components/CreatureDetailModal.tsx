@@ -8,6 +8,7 @@ import { playButtonFeedback } from '../utils/sounds';
 import { rewardsApi, analyticsApi, ShopItem } from '../utils/api';
 import { useApp } from '../context/AppContext';
 import { pickLocalized } from '../utils/localizedText';
+import { stageNumber, stageOfTotal } from '../utils/stageProgress';
 import { EvolutionProgressBar, DEFAULT_CREATURE_THRESHOLDS, COMMUNITY_CREATURE_THRESHOLDS } from './EvolutionProgressBar';
 
 // Real feature Aug 22 (item 2 visual polish): the "select from a grid, see one large focused
@@ -533,7 +534,7 @@ export const CreatureDetailModal: React.FC<Props> = ({ visible, onClose, entry, 
                 // off-by-one. stageCount (already the real, verified total) replaces
                 // entry.max_stage as the denominator so this can't disagree with the boxes
                 // rendered above it.
-                : `${t('stage') || 'Stage'} ${entry.type === 'default' ? localStage + 1 : localStage} / ${stageCount}`}
+                : stageOfTotal(t('stage_of_total') || 'Stage {n} of {total}', stageNumber(entry.type, localStage), stageCount)}
             </Text>
 
             {/* Real feature Sep 15 (progress bar unification): same EvolutionProgressBar as

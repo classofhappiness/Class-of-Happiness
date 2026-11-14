@@ -403,6 +403,7 @@
   "confirm": "Confirmer",
   "unlocked": "Débloqué !",
   "stage": "Étape",
+  "stage_of_total": "Étape {n} sur {total}",
   "icon": "Icône",
   "most_used": "Les Plus Utilisés",
   "zone_distribution": "Répartition des Émotions",

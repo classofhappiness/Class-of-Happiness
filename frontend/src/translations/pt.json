@@ -129,6 +129,7 @@
   "my_creatures": "As Minhas Criaturas",
   "unlocked": "Desbloqueado!",
   "stage": "Fase",
+  "stage_of_total": "Etapa {n} de {total}",
   "points": "Pontos",
   "share": "Partilhar",
   "icon": "Ícone",

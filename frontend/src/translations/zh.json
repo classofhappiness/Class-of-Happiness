@@ -1270,6 +1270,7 @@
   "something_went_wrong": "出了点问题。",
   "special_needs_education": "特殊教育需求",
   "stage": "阶段",
+  "stage_of_total": "第 {n} 阶段，共 {total} 阶段",
   "stage_1_label": "阶段 1 - 蛋或种子",
   "stage_2_label": "阶段 2 - 孵化或发芽",
   "stage_3_label": "阶段 3 - 成长",

@@ -1270,6 +1270,7 @@
   "something_went_wrong": "कुछ गड़बड़ हो गई।",
   "special_needs_education": "विशेष आवश्यकताएं",
   "stage": "चरण",
+  "stage_of_total": "चरण {n} / {total}",
   "stage_1_label": "चरण 1 - अंडा या बीज",
   "stage_2_label": "चरण 2 - अंडे से निकलना या अंकुरित होना",
   "stage_3_label": "चरण 3 - बढ़ना",

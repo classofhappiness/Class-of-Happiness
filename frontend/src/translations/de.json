@@ -403,6 +403,7 @@
   "confirm": "Bestätigen",
   "unlocked": "Freigeschaltet!",
   "stage": "Stufe",
+  "stage_of_total": "Stufe {n} von {total}",
   "icon": "Symbol",
   "most_used": "Meistgenutzt",
   "zone_distribution": "Emotionsverteilung",

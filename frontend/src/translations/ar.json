@@ -1270,6 +1270,7 @@
   "something_went_wrong": "حدث خطأ ما.",
   "special_needs_education": "احتياجات خاصة",
   "stage": "المرحلة",
+  "stage_of_total": "المرحلة {n} من {total}",
   "stage_1_label": "المرحلة 1 - بيضة أو بذرة",
   "stage_2_label": "المرحلة 2 - الفقس أو الإنبات",
   "stage_3_label": "المرحلة 3 - النمو",

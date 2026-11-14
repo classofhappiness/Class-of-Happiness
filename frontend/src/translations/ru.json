@@ -1270,6 +1270,7 @@
   "something_went_wrong": "Что-то пошло не так.",
   "special_needs_education": "Особые потребности",
   "stage": "Стадия",
+  "stage_of_total": "Этап {n} из {total}",
   "stage_1_label": "Этап 1 - Яйцо или семя",
   "stage_2_label": "Этап 2 - Вылупление или прорастание",
   "stage_3_label": "Этап 3 - Рост",

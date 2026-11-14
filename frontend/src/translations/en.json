@@ -1205,6 +1205,7 @@
   "something_went_wrong": "Something went wrong.",
   "special_needs_education": "Special Needs",
   "stage": "Stage",
+  "stage_of_total": "Stage {n} of {total}",
   "stage_1_label": "Stage 1 - Egg or seed",
   "stage_2_label": "Stage 2 - Hatching or sprouting",
   "stage_3_label": "Stage 3 - Growing",
