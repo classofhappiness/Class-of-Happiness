@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-14b (superadmin Creatures tab: creature moderation viewer - large viewer with all four stages on a tint of the emotion colour, zoom, keyboard arrows and Escape, an info panel (colour, country, scope, submitted by, time, status, AI check in plain words), in-browser image checks (pixel size and the 1024x1024 / art at most 80 percent rule), Approve and Reject with a named confirmation; bigger card thumbnail with compact info on the pending and awaiting-final-approval cards; the same viewer on Approved Creatures, where "N uses" now reads "Finished by N"; user text escaped; older versions below) -->
+<!-- COH-PORTAL-VERSION: 2026-11-15 (superadmin Creatures tab: new "Starter creatures" card from GET /admin/creatures/starters - per starter creature: started, children at stages 0 to 3, finished, growing now, ready to evolve but not evolved; counts only, test accounts left out; "community creatures only" notes under Finished by and Reached final stage) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-14b (superadmin Creatures tab: creature moderation viewer - large viewer with all four stages on a tint of the emotion colour, zoom, keyboard arrows and Escape, an info panel (colour, country, scope, submitted by, time, status, AI check in plain words), in-browser image checks (pixel size and the 1024x1024 / art at most 80 percent rule), Approve and Reject with a named confirmation; bigger card thumbnail with compact info on the pending and awaiting-final-approval cards; the same viewer on Approved Creatures, where "N uses" now reads "Finished by N"; user text escaped; older versions below) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-14 (superadmin Creatures tab: read-only "Top creatures (last 30 days)" table from GET /admin/creatures/top - community creatures ranked by distinct students who started them, plus students who reached the final stage; older versions below) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11c (superadmin All Users: search box (name or email), "Suspended" badge and a Suspend / Reactivate button per user - hidden for superadmin accounts and for your own account - using POST /admin/users/{id}/suspend and /reactivate) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11b (creature stage viewer: pending, awaiting-final-approval, approved and featured creatures show all stages with arrows and a 1/4 counter; replaces the single stage-1 thumbnail and the pending "See stages" link) -->
@@ -6145,6 +6146,11 @@ function creaturesHTML(){
     '<h2>📈 Top creatures (last 30 days)</h2>'+
     '<p style="font-size:.72rem;color:var(--soft);margin-bottom:.75rem">Superadmin only. The ranking children see as "Class favourite", with the numbers: community creatures by how many different students started them. A creature is listed only once at least 5 different students have started it; the in-app row stays hidden until at least 3 creatures qualify.</p>'+
     '<div id="topCreatures"><div class="loading"><div class="spinner"></div></div></div>'+
+  '</div>' : '')+
+  ((currentUser&&currentUser.role)==='superadmin' ? '<div class="card">'+
+    '<h2>Starter creatures</h2>'+
+    '<p style="font-size:.72rem;color:var(--soft);margin-bottom:.75rem">Superadmin only. Aqua Buddy, Leaf Friend, Blaze Heart and Spark Pal, all time. "Started" means the child has earned points with it, evolved it, or is growing it now. Test accounts are left out.</p>'+
+    '<div id="starterCreatures"><div class="loading"><div class="spinner"></div></div></div>'+
   '</div>' : '');
 }
 
@@ -6162,7 +6168,7 @@ async function renderTopCreatures(){
     }
     var html='<table style="width:100%;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;color:var(--soft);font-size:.7rem">'+
       '<th style="padding:.3rem">#</th><th style="padding:.3rem">Creature</th><th style="padding:.3rem">Colour</th>'+
-      '<th style="padding:.3rem;text-align:right">Students started</th><th style="padding:.3rem;text-align:right">Reached final stage</th></tr></thead><tbody>';
+      '<th style="padding:.3rem;text-align:right">Students started</th><th style="padding:.3rem;text-align:right">Reached final stage<br><span style="font-weight:400">community creatures only</span></th></tr></thead><tbody>';
     rows.forEach(function(r){
       html+='<tr style="border-top:1px solid #eee"><td style="padding:.35rem .3rem;font-weight:900">'+r.rank+'</td>'+
         '<td style="padding:.35rem .3rem;font-weight:800;color:var(--navy)">'+esc(r.name||r.creature_id)+'</td>'+
@@ -6174,6 +6180,31 @@ async function renderTopCreatures(){
   }catch(e){
     el.innerHTML='<p style="color:var(--muted);font-size:.8rem">Could not load the ranking.</p>';
     console.error('renderTopCreatures error:',e);
+  }
+}
+
+// Superadmin "Starter creatures" card (GET /admin/creatures/starters): counts only, from each child's own creature progress.
+async function renderStarterCreatures(){
+  var el=document.getElementById('starterCreatures');
+  if(!el) return;
+  try{
+    var d=await api('/admin/creatures/starters');
+    var names={aqua_buddy:'Aqua Buddy',leaf_friend:'Leaf Friend',blaze_heart:'Blaze Heart',spark_pal:'Spark Pal'};
+    var th=function(t,right){return '<th style="padding:.3rem;'+(right?'text-align:right':'')+'">'+t+'</th>';};
+    var td=function(t,extra){return '<td style="padding:.35rem .3rem;text-align:right;'+(extra||'')+'">'+t+'</td>';};
+    var html='<table style="width:100%;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;color:var(--soft);font-size:.7rem">'+
+      th('Creature')+th('Started',1)+th('Stage 0',1)+th('Stage 1',1)+th('Stage 2',1)+th('Stage 3 (finished)',1)+th('Active now',1)+th('Ready to evolve, not evolved',1)+'</tr></thead><tbody>';
+    Object.keys(names).forEach(function(k){
+      var r=(d.creatures||{})[k];
+      if(!r) return;
+      var s=r.stage_counts||[0,0,0,0];
+      html+='<tr style="border-top:1px solid #eee"><td style="padding:.35rem .3rem;font-weight:800;color:var(--navy)">'+names[k]+'</td>'+
+        td(r.started)+td(s[0])+td(s[1])+td(s[2])+td(r.finished,'font-weight:800')+td(r.active)+td(r.ready_to_evolve)+'</tr>';
+    });
+    el.innerHTML=html+'</tbody></table><p style="font-size:.7rem;color:var(--muted);margin-top:.6rem">'+(d.children||0)+' children counted. A child can appear under several creatures. "Ready to evolve" means the points for the next stage are already earned but the child has not tapped Evolve.</p>';
+  }catch(e){
+    el.innerHTML='<p style="color:var(--muted);font-size:.8rem">Could not load the starter creature numbers.</p>';
+    console.error('renderStarterCreatures error:',e);
   }
 }
 
@@ -6469,7 +6500,7 @@ function openCreatureViewer(c,opts){
     ['AI check',crAiLine(c.ai_moderation_flag,false)],
     ['Description',c.description?'<span style="white-space:pre-wrap">'+esc(c.description)+'</span>':'<span style="color:var(--muted)">None</span>']
   ];
-  if(kind==='approved') rows.push(['Finished by',esc(String(c.global_uses||0))+' '+((c.global_uses||0)===1?'child':'children')+' (reached the final stage)']);
+  if(kind==='approved') rows.push(['Finished by',esc(String(c.global_uses||0))+' '+((c.global_uses||0)===1?'child':'children')+' (reached the final stage; community creatures only)']);
   info.innerHTML=rows.map(function(r){
     return '<div style="margin-bottom:.55rem"><div style="font-size:.64rem;font-weight:800;color:var(--soft);text-transform:uppercase;letter-spacing:.03em">'+r[0]+'</div><div style="font-size:.84rem;color:#222">'+r[1]+'</div></div>';
   }).join('');
@@ -6619,6 +6650,7 @@ async function renderCreatures(){
           var uses=document.createElement('div');
           uses.style.cssText='font-size:.65rem;color:var(--muted)';
           uses.textContent='Finished by '+(c.global_uses||0);
+          uses.title='Community creatures only';
           // Real product fix Sep 12 (tiered moderation model, Jono's confirmed sign-off):
           // this card is only ever reached via school_admin's creaturesHTML() today -
           // featuring is now superadmin-only (broadcasts worldwide, same tier as
@@ -6632,7 +6664,7 @@ async function renderCreatures(){
       }
     }
   }catch(e){console.error('renderCreatures error:',e);}
-  if(currentUser&&currentUser.role==='superadmin') renderTopCreatures();
+  if(currentUser&&currentUser.role==='superadmin'){ renderTopCreatures(); renderStarterCreatures(); }
 }
 
 
