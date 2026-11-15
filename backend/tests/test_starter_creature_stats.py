@@ -94,15 +94,37 @@ def test_unauthenticated_gets_403(db, monkeypatch):
 
 
 def test_test_accounts_superadmin_and_unknown_owners_are_left_out(db, monkeypatch):
-    assert call(monkeypatch, "superadmin")["children"] == 4          # s1..s4 only
+    assert raw()["children"] == 4          # s1..s4 only (the endpoint then shows it as "fewer than 5")
+
+
+def raw():
+    return S._starter_stats_sync()
 
 
 def test_counts_on_the_fixture(db, monkeypatch):
-    c = call(monkeypatch, "superadmin")["creatures"]
+    c = raw()["creatures"]
     assert c["aqua_buddy"] == {"started": 3, "stage_counts": [1, 0, 1, 1], "finished": 1, "active": 1, "ready_to_evolve": 1}
     assert c["leaf_friend"] == {"started": 1, "stage_counts": [0, 1, 0, 0], "finished": 0, "active": 1, "ready_to_evolve": 1}
     assert c["blaze_heart"] == {"started": 1, "stage_counts": [1, 0, 0, 0], "finished": 0, "active": 1, "ready_to_evolve": 0}
     assert c["spark_pal"] == {"started": 1, "stage_counts": [1, 0, 0, 0], "finished": 0, "active": 1, "ready_to_evolve": 0}
+
+
+def test_endpoint_suppresses_every_cell_under_five(db, monkeypatch):
+    out = call(monkeypatch, "superadmin")
+    assert out["children"] == "fewer than 5"                      # 4 children on the fixture
+    for d in out["creatures"].values():
+        assert d["started"] == "fewer than 5" and d["finished"] == "fewer than 5"
+        assert d["active"] == "fewer than 5" and d["ready_to_evolve"] == "fewer than 5"
+        assert d["stage_counts"] == ["fewer than 5"] * 4
+
+
+def test_suppression_keeps_five_and_over_and_hides_zero():
+    base = {"children": 12, "creatures": {"aqua_buddy": {"started": 9, "stage_counts": [5, 4, 0, 0], "finished": 0, "active": 5, "ready_to_evolve": 7}}}
+    d = S._suppress_starter_stats(base)
+    assert d["children"] == 12
+    a = d["creatures"]["aqua_buddy"]
+    assert a["started"] == 9 and a["stage_counts"] == [5, "fewer than 5", "fewer than 5", "fewer than 5"]
+    assert a["finished"] == "fewer than 5" and a["active"] == 5 and a["ready_to_evolve"] == 7
 
 
 def test_response_holds_counts_only(db, monkeypatch):

@@ -16177,6 +16177,7 @@ async def get_admin_stats(request: Request, days: int = 7):
         # Basic counts — scoped to the caller's own school if they're a school_admin, global for superadmin
         school_teacher_ids = []
         student_ids_for_school = None  # only populated for school_admin; None means "not scoped" (superadmin)
+        excl_students, excl_family, excl_roles = set(), set(), {}   # filled for the platform-wide view only (test and demo accounts); a school sees its own data as it is
         if user.get("role") == "school_admin":
             admin_id = user.get("user_id")
             school_name = user.get("school_name", "")
@@ -16207,16 +16208,21 @@ async def get_admin_stats(request: Request, days: int = 7):
                 student_ids_for_school = []
             total_students = len(student_ids_for_school)
         else:
+            excl_students, excl_family = await asyncio.to_thread(_stats_excluded_children_sync)
             students_result = supabase.table("students").select("id", count="exact").execute()
-            total_students = students_result.count or 0
+            total_students = max(0, (students_result.count or 0) - len(excl_students))
 
             # Teachers are stored as role='admin' (set on school creation)
             # Count all non-superadmin, non-parent users as teachers
             teachers_result = supabase.table("users").select("user_id", count="exact").in_("role", ["admin", "teacher", "school_admin"]).execute()
             total_teachers = teachers_result.count or 0
+            excl_roles = {u["user_id"]: u.get("role") for u in (supabase.table("users").select("user_id,role").in_("user_id", sorted(STATS_EXCLUDED_USER_IDS)).execute().data or [])}
+            total_teachers = max(0, total_teachers - sum(1 for r in excl_roles.values() if r in ("admin", "teacher", "school_admin")))
 
         users_result = supabase.table("users").select("user_id", count="exact").execute()
         total_users = users_result.count or 0
+        if user.get("role") != "school_admin":
+            total_users = max(0, total_users - len(excl_roles))
 
         # Zone logs for this week
         # Query both zone_logs and feeling_logs
@@ -16242,6 +16248,9 @@ async def get_admin_stats(request: Request, days: int = 7):
                 logs = _fetch_all_paginated("feeling_logs", "*", lambda q: q.gte("timestamp", week_ago))
         except Exception as e:
             logger.warning(f"[stats-feeling-logs] feeling_logs fetch failed: {e}")
+
+        if excl_students or excl_family:
+            logs = [l for l in logs if l.get("student_id") not in excl_students and l.get("family_member_id") not in excl_family]
 
         # Zone counts
         zone_counts = {"blue": 0, "green": 0, "yellow": 0, "red": 0}
@@ -16280,7 +16289,7 @@ async def get_admin_stats(request: Request, days: int = 7):
             if user.get("role") == "school_admin":
                 tc_data = _fetch_all_paginated("teacher_checkins", "*", lambda q: q.in_("user_id", school_teacher_ids).gte("created_at", week_ago)) if school_teacher_ids else []
             else:
-                tc_data = _fetch_all_paginated("teacher_checkins", "*", lambda q: q.gte("created_at", week_ago))
+                tc_data = [r for r in _fetch_all_paginated("teacher_checkins", "*", lambda q: q.gte("created_at", week_ago)) if r.get("user_id") not in STATS_EXCLUDED_USER_IDS]
             for tc in tc_data:
                 tz = tc.get("zone") or tc.get("feeling_colour", "")
                 if tz in teacher_zone_counts:
@@ -16323,8 +16332,12 @@ async def get_admin_stats(request: Request, days: int = 7):
         # Total creatures across all students
         total_creatures = 0
         try:
-            creatures_r = supabase.table("creature_unlocks").select("id", count="exact").execute()   # fix51: there is no `creatures` table; creatures students have started/collected = creature_unlocks rows
-            total_creatures = creatures_r.count or 0
+            # fix51: there is no `creatures` table; community creatures students have started/collected = creature_unlocks rows (the four starters live in student_rewards)
+            if user.get("role") == "school_admin":
+                total_creatures = supabase.table("creature_unlocks").select("id", count="exact").execute().count or 0
+            else:
+                total_creatures = sum(1 for u in _fetch_all_paginated("creature_unlocks", "student_id,real_student_id", lambda q: q)
+                                      if (u.get("real_student_id") or u.get("student_id")) not in excl_students)
         except Exception as e:
             logger.warning(f"[stats-total-creatures] creatures count failed: {e}")
 
@@ -16340,7 +16353,7 @@ async def get_admin_stats(request: Request, days: int = 7):
                     chunk = student_ids_for_school[i:i + 50]
                     all_logs_data.extend(_fetch_all_paginated("feeling_logs", "student_id,timestamp", lambda q, c=chunk: q.in_("student_id", c).gte("timestamp", month_ago)))
             else:
-                all_logs_data = _fetch_all_paginated("feeling_logs", "student_id,timestamp", lambda q: q.gte("timestamp", month_ago))
+                all_logs_data = [l for l in _fetch_all_paginated("feeling_logs", "student_id,timestamp", lambda q: q.gte("timestamp", month_ago)) if l.get("student_id") not in excl_students]
             from collections import defaultdict
             student_dates = defaultdict(set)
             for l in all_logs_data:
@@ -16363,12 +16376,16 @@ async def get_admin_stats(request: Request, days: int = 7):
         except Exception as e:
             logger.debug(f"[stats-streak] streak_students calculation failed: {e}")
 
-        # Top strategy
-        strategy_counts = {}
-        for log in logs:
-            for s in (log.get("strategies_selected") or []):
-                strategy_counts[s] = strategy_counts.get(s, 0) + 1
-        top_strategy = max(strategy_counts, key=strategy_counts.get) if strategy_counts else "—"
+        # Privacy-safe platform numbers (platform-wide view only; a school_admin's own dashboard keeps its scoped numbers).
+        # Every value is an aggregate: a number, a helper name, or the plain words for why there is none ("fewer than 5", "no data yet").
+        top_strategy = NO_DATA_YET
+        extra_stats = {}
+        if user.get("role") != "school_admin":
+            try:
+                extra_stats = await asyncio.to_thread(_platform_privacy_stats_sync, excl_students, excl_family, month_ago)
+                top_strategy = extra_stats.pop("top_strategy")
+            except Exception as e:
+                logger.warning(f"[stats-privacy-stats] failed: {e}")
 
         # Schools breakdown — one entry per unique school, students via teachers linked to this school_admin
         try:
@@ -16377,6 +16394,8 @@ async def get_admin_stats(request: Request, days: int = 7):
             seen_school_names = set()
             for admin in (school_admins.data or []):
                 admin_id = admin.get("user_id", "")
+                if admin_id in STATS_EXCLUDED_USER_IDS:
+                    continue
                 school_name_key = admin.get("school_name") or admin_id
                 if school_name_key in seen_school_names:
                     continue
@@ -16398,7 +16417,7 @@ async def get_admin_stats(request: Request, days: int = 7):
                         school_classroom_ids2 = [c["id"] for c in (school_classrooms_r2.data or [])]
                         if school_classroom_ids2:
                             school_students = supabase.table("students").select("id,classroom_id").in_("classroom_id", school_classroom_ids2).execute()
-                            student_ids = [s["id"] for s in (school_students.data or [])]
+                            student_ids = [s["id"] for s in (school_students.data or []) if s["id"] not in excl_students]
                 except Exception as e:
                     logger.warning(f"[stats-school-students] school students query failed: {e}")
                     student_ids = []
@@ -16477,8 +16496,10 @@ async def get_admin_stats(request: Request, days: int = 7):
         active_schools = 0
         if user.get("role") != "school_admin":
             try:
-                paying_r = supabase.table("users").select("role,subscription_status,subscription_expires_at").eq("subscription_status", "active").in_("role", ["parent", "teacher"]).execute()
+                paying_r = supabase.table("users").select("user_id,role,subscription_status,subscription_expires_at").eq("subscription_status", "active").in_("role", ["parent", "teacher"]).execute()
                 for u in (paying_r.data or []):
+                    if u.get("user_id") in STATS_EXCLUDED_USER_IDS:
+                        continue
                     exp = u.get("subscription_expires_at")
                     if exp:
                         try:
@@ -16493,8 +16514,8 @@ async def get_admin_stats(request: Request, days: int = 7):
             except Exception as sub_err:
                 logger.error(f"Subscriptions stat error: {sub_err}")
             try:
-                schools_active_r = supabase.table("school_profiles").select("id", count="exact").eq("status", "active").execute()
-                active_schools = schools_active_r.count or 0
+                schools_active_r = supabase.table("school_profiles").select("id,user_id").eq("status", "active").execute()
+                active_schools = sum(1 for r in (schools_active_r.data or []) if r.get("user_id") not in STATS_EXCLUDED_USER_IDS)
             except Exception as sub_err:
                 logger.error(f"Active schools stat error: {sub_err}")
 
@@ -16518,11 +16539,15 @@ async def get_admin_stats(request: Request, days: int = 7):
             "teacher_daily": teacher_daily,
             "active_daily": checkin_daily,
             "school_daily": [total_schools] * 7,
-            "support_requests": support_requests,
+            "support_requests": extra_stats.get("support_requests", NO_DATA_YET),   # platform-wide, last 30 days, 5+ (no hardcoded 0)
             "top_strategy": top_strategy,
-            "top_teacher_strategy": "—",
+            "top_teacher_strategy": "Not enough teachers yet",
+            "home_checkins_total": extra_stats.get("home_checkins_total", NO_DATA_YET),
+            "linked_families": extra_stats.get("linked_families", NO_DATA_YET),
+            "helper_chosen_share": extra_stats.get("helper_chosen_share", NO_DATA_YET),
+            "starter_creatures_started": extra_stats.get("starter_creatures_started", NO_DATA_YET),
             "total_creatures": total_creatures,
-            "avg_checkins_to_evolve": "—",
+            "avg_checkins_to_evolve": "Not enough data yet",
             "streak_students": streak_students,
             "avg_session_mins": "—",
             "avg_student_session": "—",
@@ -16544,9 +16569,9 @@ async def get_admin_stats(request: Request, days: int = 7):
                 "total_teacher_checkins": 0, "checkin_daily": [0]*7,
                 "student_daily": [0]*7, "teacher_daily": [0]*7,
                 "active_daily": [0]*7, "school_daily": [0]*7,
-                "support_requests": 0, "top_strategy": "—",
-                "top_teacher_strategy": "—", "total_creatures": 0,
-                "avg_checkins_to_evolve": "—", "streak_students": 0,
+                "support_requests": 0, "top_strategy": NO_DATA_YET,
+                "top_teacher_strategy": "Not enough teachers yet", "total_creatures": 0,
+                "avg_checkins_to_evolve": "Not enough data yet", "streak_students": 0,
                 "avg_session_mins": "—", "avg_student_session": "—",
                 "avg_teacher_session": "—", "schools_breakdown": [],
             }
@@ -16559,7 +16584,7 @@ async def get_admin_stats(request: Request, days: int = 7):
             "total_teacher_checkins": 0, "checkin_daily": [0]*7,
             "student_daily": [0]*7, "teacher_daily": [0]*7,
             "active_daily": [0]*7, "school_daily": [0]*7,
-            "support_requests": 0, "top_strategy": "—",
+            "support_requests": 0, "top_strategy": NO_DATA_YET,
             "top_teacher_strategy": "—", "total_creatures": 0,
             "avg_checkins_to_evolve": "—", "streak_students": 0,
             "avg_session_mins": "—", "avg_student_session": "—",
@@ -16684,7 +16709,8 @@ async def debug_student_classrooms(request: Request):
     try:
         students = supabase.table("students").select("id,name,classroom_id,user_id").order("name").execute()
         classrooms = supabase.table("classrooms").select("id,name,user_id").execute()
-        alerts = supabase.table("student_alerts").select("id,student_name,student_id,alert_type,created_at,resolved").order("created_at", desc=True).limit(10).execute()
+        # never student_name here: a child's name does not belong in this dump
+        alerts = supabase.table("student_alerts").select("id,student_id,alert_type,created_at,resolved").order("created_at", desc=True).limit(10).execute()
         # Real fix Sep 10 (Support Requests parent-leak audit): this narrowly keeps
         # never-parent-facing support_request rows out of what this route returns.
         recent_alerts = [a for a in (alerts.data or []) if a.get("alert_type") != "support_request"]
@@ -22862,6 +22888,86 @@ async def admin_top_creatures(request: Request):
 # so a NEW test account must be added to this list by hand or its children will be counted.
 STATS_EXCLUDED_USER_IDS = {"user_1c63245ecbf5", "44bf76b1-c0ee-49d5-bc68-3e47bb5cf8b3", "user_0e4a05d60288"}
 
+# Small-group rule for every platform-wide number the superadmin sees: a count under 5 is never shown as a number (it could point
+# at one child). A missing value says why, in plain words. Done on the server, never in the portal.
+MIN_GROUP = 5
+FEWER_THAN_5 = "fewer than 5"
+NO_DATA_YET = "no data yet"
+
+def _suppress(n):
+    """A count of MIN_GROUP or more is returned as it is; anything smaller (a 0 included, which would look like a real zero) is
+    'fewer than 5'. A value that is already words is passed through."""
+    if isinstance(n, str):
+        return n
+    return n if isinstance(n, int) and not isinstance(n, bool) and n >= MIN_GROUP else FEWER_THAN_5
+
+def _stats_excluded_children_sync() -> tuple:
+    """(student ids, family member ids) belonging to STATS_EXCLUDED_USER_IDS: children they own directly, children in their
+    classrooms, and the family members on their accounts. Ids only, used to filter; never returned to a caller."""
+    ex = sorted(STATS_EXCLUDED_USER_IDS)
+    cls = [c["id"] for c in (supabase.table("classrooms").select("id").in_("user_id", ex).execute().data or [])]
+    students = {s["id"] for s in (supabase.table("students").select("id").in_("user_id", ex).execute().data or [])}
+    if cls:
+        students |= {s["id"] for s in (supabase.table("students").select("id").in_("classroom_id", cls).execute().data or [])}
+    family = {f["id"] for f in (supabase.table("family_members").select("id").in_("user_id", ex).execute().data or [])}
+    return students, family
+
+def _helper_public_name(helper_id) -> Optional[str]:
+    """Name of a built-in helper only. A custom or school strategy is somebody's own wording, so it is never named here."""
+    return STRATEGY_NAME_MAP.get(str(helper_id).strip())
+
+def _top_helper(rows: list):
+    """rows: [(child_key, [helper ids])] for the window. Returns the built-in helper chosen by the most DISTINCT children as
+    (name, children), or None when no helper reaches MIN_GROUP children (check-ins by one child never add up to a group)."""
+    kids: dict = {}
+    for child, helpers in rows:
+        if not child:
+            continue
+        for h in set(helpers or []):
+            name = _helper_public_name(h)
+            if name:
+                kids.setdefault(name, set()).add(child)
+    if not kids:
+        return None
+    name, who = max(kids.items(), key=lambda kv: (len(kv[1]), kv[0]))
+    return (name, len(who)) if len(who) >= MIN_GROUP else None
+
+def _helper_share(rows: list):
+    """rows: [(child_key, helper chosen: bool)] for the window. Returns (percent, check-ins), or None when fewer than MIN_GROUP
+    distinct children are behind it."""
+    children = {c for c, _ in rows if c}
+    if len(children) < MIN_GROUP:
+        return None
+    n = len(rows)
+    return round(100 * sum(1 for _, h in rows if h) / n), n
+
+def _platform_privacy_stats_sync(excl_students: set, excl_family: set, month_ago: str) -> dict:
+    """Home check-ins, linked families, helper numbers and starter creature totals for the superadmin dashboard. Test and demo
+    accounts' children are left out of every number; counts only, no names, no ids."""
+    def keep(l):
+        return l.get("student_id") not in excl_students and l.get("family_member_id") not in excl_family
+    out = {}
+    home = [l for l in _fetch_all_paginated("feeling_logs", "student_id,family_member_id,logged_by", lambda q: q.in_("logged_by", ["parent", "family"])) if keep(l)]
+    fam = [l for l in _fetch_all_paginated("family_zone_logs", "user_id", lambda q: q) if l.get("user_id") not in STATS_EXCLUDED_USER_IDS]
+    out["home_checkins_total"] = _suppress(len(home) + len(fam))
+    links = _fetch_all_paginated("parent_links", "parent_user_id,student_id", lambda q: q)
+    out["linked_families"] = _suppress(len({r["parent_user_id"] for r in links if r.get("parent_user_id")
+                                            and r["parent_user_id"] not in STATS_EXCLUDED_USER_IDS and r.get("student_id") not in excl_students}))
+    recent = [l for l in _fetch_all_paginated("feeling_logs", "student_id,family_member_id,helpers_selected", lambda q: q.gte("timestamp", month_ago)) if keep(l)]
+    if not recent:
+        out["top_strategy"] = NO_DATA_YET
+        out["helper_chosen_share"] = NO_DATA_YET
+    else:
+        top = _top_helper([(l.get("student_id") or l.get("family_member_id"), l.get("helpers_selected")) for l in recent])
+        out["top_strategy"] = top[0] if top else "fewer than 5 children"
+        share = _helper_share([(l.get("student_id") or l.get("family_member_id"), bool(l.get("helpers_selected"))) for l in recent])
+        out["helper_chosen_share"] = f"{share[0]}% of {share[1]} check-ins" if share else "fewer than 5 children"
+    srs = _fetch_all_paginated("support_requests", "student_id,requested_by", lambda q: q.gte("created_at", month_ago))
+    out["support_requests"] = _suppress(sum(1 for r in srs if r.get("student_id") not in excl_students and r.get("requested_by") not in STATS_EXCLUDED_USER_IDS))
+    started = sum(d["started"] for d in _starter_stats_sync()["creatures"].values())
+    out["starter_creatures_started"] = _suppress(started)
+    return out
+
 def _json_map(v) -> dict:
     if isinstance(v, str):
         try:
@@ -22902,6 +23008,15 @@ def _starter_stats_from_rows(rewards: list, owner_of: dict, roles: dict) -> dict
                 d["ready_to_evolve"] += 1
     return {"children": children, "creatures": out}
 
+def _suppress_starter_stats(raw: dict) -> dict:
+    """Small-group rule for the starter creature card: every cell under MIN_GROUP becomes 'fewer than 5', done here so the
+    portal never receives the small number."""
+    return {"children": _suppress(raw["children"]),
+            "creatures": {cid: {"started": _suppress(d["started"]), "stage_counts": [_suppress(n) for n in d["stage_counts"]],
+                                "finished": _suppress(d["finished"]), "active": _suppress(d["active"]),
+                                "ready_to_evolve": _suppress(d["ready_to_evolve"])}
+                          for cid, d in raw["creatures"].items()}}
+
 def _starter_stats_sync() -> dict:
     cls = {c["id"]: c.get("user_id") for c in _fetch_all_paginated("classrooms", "id,user_id", lambda q: q)}
     owner_of = {s["id"]: (s.get("user_id") or cls.get(s.get("classroom_id")))
@@ -22917,7 +23032,7 @@ async def admin_starter_creatures(request: Request):
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin only")
-    return await asyncio.to_thread(_starter_stats_sync)
+    return _suppress_starter_stats(await asyncio.to_thread(_starter_stats_sync))
 
 
 # ================== ENGAGEMENT ANALYTICS ==================
