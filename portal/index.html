@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- COH-PORTAL-VERSION: 2026-11-15 (superadmin Creatures tab: new "Starter creatures" card from GET /admin/creatures/starters - per starter creature: started, children at stages 0 to 3, finished, growing now, ready to evolve but not evolved; counts only, test accounts left out; "community creatures only" notes under Finished by and Reached final stage) -->
+<!-- COH-PORTAL-VERSION: 2026-11-15b (superadmin dashboard: Support requests (last 30 days) is now a real count and Teacher Wellbeing says "Not enough teachers yet" instead of false zeros; Home check-ins total, Linked families, Check-ins with a helper chosen and Starter creatures started added; Most used student strategy fixed (last 30 days, 5+ children); "Total creatures collected" relabelled Community creatures collected; a missing value reads "no data yet" and a group under 5 reads "fewer than 5" (suppressed on the server); Starter creatures card cells under 5 suppressed) -->
+<!-- COH-PORTAL-VERSION (prior): 2026-11-15 (superadmin Creatures tab: new "Starter creatures" card from GET /admin/creatures/starters - per starter creature: started, children at stages 0 to 3, finished, growing now, ready to evolve but not evolved; counts only, test accounts left out; "community creatures only" notes under Finished by and Reached final stage) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-14b (superadmin Creatures tab: creature moderation viewer - large viewer with all four stages on a tint of the emotion colour, zoom, keyboard arrows and Escape, an info panel (colour, country, scope, submitted by, time, status, AI check in plain words), in-browser image checks (pixel size and the 1024x1024 / art at most 80 percent rule), Approve and Reject with a named confirmation; bigger card thumbnail with compact info on the pending and awaiting-final-approval cards; the same viewer on Approved Creatures, where "N uses" now reads "Finished by N"; user text escaped; older versions below) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-14 (superadmin Creatures tab: read-only "Top creatures (last 30 days)" table from GET /admin/creatures/top - community creatures ranked by distinct students who started them, plus students who reached the final stage; older versions below) -->
 <!-- COH-PORTAL-VERSION (prior): 2026-11-11c (superadmin All Users: search box (name or email), "Suspended" badge and a Suspend / Reactivate button per user - hidden for superadmin accounts and for your own account - using POST /admin/users/{id}/suspend and /reactivate) -->
@@ -1192,7 +1193,7 @@ async function loadSuperAdminData(){
     function statRow(label,value,color){
       return '<div class="stat-row" style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid #F5F5F5">'+
         '<span style="flex:1;font-size:.75rem;color:#555">'+label+'</span>'+
-        '<span style="font-size:.85rem;font-weight:800;color:'+(color||'var(--navy)')+'">'+(value===undefined||value===null?'\u2014':value)+'</span>'+
+        '<span style="font-size:.85rem;font-weight:800;color:'+(color||'var(--navy)')+'">'+(value===undefined||value===null||value===''||value==='\u2014'?'no data yet':value)+'</span>'+
       '</div>';
     }
     function colourBar(zone,count,total){
@@ -1233,16 +1234,19 @@ async function loadSuperAdminData(){
 
     // Teacher Wellbeing
     var twEl=document.getElementById('saTeacherWellbeing');
-    if(twEl)twEl.innerHTML=['green','blue','yellow','red'].map(function(z){return colourBar(z,tc[z]||0,ttc);}).join('')+
-      statRow('Support requests this month',stats.support_requests,'#E05252');
+    // the bars were false zeros (the teacher check-in query behind them does not work yet), so say so instead
+    if(twEl)twEl.innerHTML='<p style="font-size:.8rem;color:var(--muted);padding:.4rem 0">Not enough teachers yet</p>'+
+      statRow('Support requests (last 30 days)',stats.support_requests,'#E05252');
 
     // Engagement & Creatures
     var egEl=document.getElementById('saEngagementCreatures');
     if(egEl)egEl.innerHTML=
-      statRow('Total creatures collected',stats.total_creatures,'#7C5CBF')+
+      statRow('Community creatures collected',stats.total_creatures,'#7C5CBF')+
+      statRow('Starter creatures started (counts child-creature pairs)',stats.starter_creatures_started,'#7C5CBF')+
       statRow('Avg check-ins to evolve',stats.avg_checkins_to_evolve,'#4A90D9')+
       statRow('Students with 7+ day streak',stats.streak_students,'#FF8C42')+
-      statRow('Most used student strategy',stats.top_strategy,'#4CAF73')+
+      statRow('Most used student strategy (last 30 days)',stats.top_strategy,'#4CAF73')+
+      statRow('Check-ins with a helper chosen (last 30 days)',stats.helper_chosen_share,'#4CAF73')+
       statRow('Most used teacher strategy',stats.top_teacher_strategy,'#F57F17');
 
     // Schools Breakdown
