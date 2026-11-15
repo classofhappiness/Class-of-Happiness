@@ -22855,6 +22855,71 @@ async def admin_top_creatures(request: Request):
     return {"window_days": FAV_WINDOW_DAYS, "rows": rows, "public_list_visible": len(rows) >= FAV_MIN_CREATURES}
 
 
+# ================== STARTER CREATURE STATS (superadmin) ==================
+# The four starter creatures live in student_rewards (creature_stages / creature_points, one JSON map per child), not in
+# creature_unlocks, so the community-only views above never count them. Counts only: no names, no ids.
+# These accounts are test or demo data and their children are left out of the numbers. The app has no test-account flag,
+# so a NEW test account must be added to this list by hand or its children will be counted.
+STATS_EXCLUDED_USER_IDS = {"user_1c63245ecbf5", "44bf76b1-c0ee-49d5-bc68-3e47bb5cf8b3", "user_0e4a05d60288"}
+
+def _json_map(v) -> dict:
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+def _starter_stats_from_rows(rewards: list, owner_of: dict, roles: dict) -> dict:
+    """rewards: student_rewards rows; owner_of: student_id -> owning user_id; roles: user_id -> role.
+    Left out: children of STATS_EXCLUDED_USER_IDS, of superadmin accounts, and of owners that no longer exist.
+    'started' = stage above 0, points above 0, or the creature the child is growing now. 'ready' = started, not at the final
+    stage, and points at or above the next stage's threshold (evolving is a button the child taps, so this is 'waiting')."""
+    thresholds = POINTS_CONFIG["evolution_thresholds"]
+    final = DEFAULT_CREATURE_FINAL_STAGE
+    out = {c: {"started": 0, "stage_counts": [0] * (final + 1), "finished": 0, "active": 0, "ready_to_evolve": 0}
+           for c in sorted(DEFAULT_CREATURE_IDS)}
+    children = 0
+    for r in rewards:
+        owner = owner_of.get(r.get("student_id"))
+        if owner in STATS_EXCLUDED_USER_IDS or roles.get(owner) in (None, "superadmin"):
+            continue
+        children += 1
+        stages, points = _json_map(r.get("creature_stages")), _json_map(r.get("creature_points"))
+        for cid, d in out.items():
+            stage = min(int(stages.get(cid) or 0), final)
+            pts = int(points.get(cid) or 0)
+            is_active = r.get("current_creature_id") == cid
+            if is_active:
+                d["active"] += 1
+            if not (stage > 0 or pts > 0 or is_active):
+                continue
+            d["started"] += 1
+            d["stage_counts"][stage] += 1
+            if stage >= final:
+                d["finished"] += 1
+            elif pts >= thresholds[stage + 1]:
+                d["ready_to_evolve"] += 1
+    return {"children": children, "creatures": out}
+
+def _starter_stats_sync() -> dict:
+    cls = {c["id"]: c.get("user_id") for c in _fetch_all_paginated("classrooms", "id,user_id", lambda q: q)}
+    owner_of = {s["id"]: (s.get("user_id") or cls.get(s.get("classroom_id")))
+                for s in _fetch_all_paginated("students", "id,user_id,classroom_id", lambda q: q)}
+    roles = {u["user_id"]: u.get("role") for u in _fetch_all_paginated("users", "user_id,role", lambda q: q)}
+    rewards = _fetch_all_paginated("student_rewards", "student_id,current_creature_id,creature_stages,creature_points", lambda q: q)
+    return _starter_stats_from_rows(rewards, owner_of, roles)
+
+@api_router.get("/admin/creatures/starters")
+async def admin_starter_creatures(request: Request):
+    """Superadmin only: per starter creature, how many children started it, how many are at each stage, how many finished,
+    how many are growing it now, and how many have the points for the next stage but have not evolved. Read only, counts only."""
+    user = await get_current_user(request)
+    if not user or user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin only")
+    return await asyncio.to_thread(_starter_stats_sync)
+
+
 # ================== ENGAGEMENT ANALYTICS ==================
 @api_router.post("/analytics/log-event")
 async def log_engagement_event(event: LogEngagementEventRequest, request: Request):
