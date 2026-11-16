@@ -3359,7 +3359,7 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
   // (still editable) and clears the link; typing a link clears the file.
   const [pdf, setPdf] = useState<{ content: string; filename: string } | null>(null);
   const [autoTitle, setAutoTitle] = useState('');
-  const [audience, setAudience] = useState<'teacher'|'parent'|'both'>('teacher');
+  const [audience, setAudience] = useState<'teachers'|'parents'|'both'>('teachers');
   const [topic, setTopic] = useState('general');
   const [saving, setSaving] = useState(false);
   const [resources, setResources] = useState<any[]>([]);
@@ -3464,9 +3464,9 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
         </ScrollView>
         <Text style={s.fieldLabel}>{t("audience") || "Audience"}</Text>
         <View style={s.chipRow}>
-          {(['teacher', 'parent', 'both'] as const).map(a => (
+          {(['teachers', 'parents', 'both'] as const).map(a => (
             <TouchableOpacity key={a} style={[s.chip, audience === a && s.chipActive]} onPress={() => setAudience(a)}>
-              <Text style={[s.chipText, audience === a && s.chipTextActive]}>{a === 'teacher' ? `👩‍🏫 ${t('audience_teachers') || 'Teachers'}` : a === 'parent' ? `👨‍👩‍👧 ${t('audience_parents') || 'Parents'}` : `👥 ${t('both_label') || 'Both'}`}</Text>
+              <Text style={[s.chipText, audience === a && s.chipTextActive]}>{a === 'teachers' ? `👩‍🏫 ${t('audience_teachers') || 'Teachers'}` : a === 'parents' ? `👨‍👩‍👧 ${t('audience_parents') || 'Parents'}` : `👥 ${t('both_label') || 'Both'}`}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -3507,7 +3507,7 @@ function ResourceUpload({ authToken }: { authToken: string|null }) {
                   <Text style={s.stratName}>{r.title}</Text>
                   {!!r.goal && <Text style={s.stratDesc} numberOfLines={2}>{r.goal}</Text>}
                   <ResourceFactsChips facts={r} t={t} />
-                  <Text style={s.stratDesc}>{r.target_audience === 'teacher' || r.audience === 'teacher' ? `👩‍🏫 ${t('audience_teachers') || 'Teachers'}` : r.target_audience === 'parent' || r.audience === 'parent' ? `👨‍👩‍👧 ${t('audience_parents') || 'Parents'}` : `👥 ${t('both_label') || 'Both'}`}</Text>
+                  <Text style={s.stratDesc}>{r.target_audience === 'teachers' ? `👩‍🏫 ${t('audience_teachers') || 'Teachers'}` : r.target_audience === 'parents' ? `👨‍👩‍👧 ${t('audience_parents') || 'Parents'}` : `👥 ${t('both_label') || 'Both'}`}</Text>
                 </View>
                 <TouchableOpacity onPress={() => handleDownload(r)} style={{ padding: 4 }}>
                   <MaterialIcons name="visibility" size={18} color="#4CAF50" />

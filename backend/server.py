@@ -5817,7 +5817,70 @@ def _insert_resource_row(row: dict, owner_school_admin_id, table=None):
             return table.insert(row).execute()
         raise
 
+# ---- Resource audience (target_audience) -------------------------------------------------------------------
+# The only stored values are the plural forms below. The audience a caller may see is decided here from the
+# caller's ROLE, never from a query parameter.
+RESOURCE_AUDIENCES = ("teachers", "parents", "both")
+
+def _clean_audience(value, default=None) -> str:
+    """The audience to store for a resource: exactly teachers, parents or both. Missing/blank gives `default`
+    (or a 400 when there is no default). Anything else - including the old singular teacher/parent and the
+    unused 'admin' - is rejected so a typo can never silently hide a resource."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if default is not None:
+            return default
+        raise HTTPException(status_code=400, detail="target_audience is required and must be one of: teachers, parents, both")
+    if not isinstance(value, str) or value not in RESOURCE_AUDIENCES:
+        raise HTTPException(status_code=400, detail="target_audience must be one of: teachers, parents, both")
+    return value
+
+def _audiences_visible_to(user: dict, requested: Optional[str] = None):
+    """Set of stored audience values this caller may see, or None for 'every audience' (superadmin/admin).
+    parent = parents + both; teacher and school_admin = teachers + both; any other role (e.g. kiosk) = both only.
+    `requested` (the ?audience= query parameter) is honoured ONLY for superadmin/admin, to narrow what they see;
+    for every other role it is ignored."""
+    role = user.get("role")
+    if role in ("admin", "superadmin"):
+        if requested in ("parents", "teachers"):
+            return {requested, "both"}
+        return None
+    if role == "parent":
+        return {"parents", "both"}
+    if role in ("teacher", "school_admin"):
+        return {"teachers", "both"}
+    return {"both"}
+
+def _resource_audience_ok(user: dict, resource: dict, allowed=...) -> bool:
+    """Whether this caller may see this resource by audience. A missing/blank audience stays visible to everyone.
+    A resource the caller uploaded themselves stays visible to them, so a teacher or school admin can still manage
+    the parent-facing items they created."""
+    if allowed is ...:
+        allowed = _audiences_visible_to(user)
+    if allowed is None:
+        return True
+    aud = resource.get("target_audience")
+    if aud is None or aud == "":
+        return True
+    if aud in allowed:
+        return True
+    uid = user.get("user_id")
+    return bool(uid) and uid in (resource.get("created_by"), resource.get("user_id"))
+
+def _require_resource_readable(user: dict, resource_id: str) -> None:
+    """404 (same as a missing item) unless this caller may read the resource - used by routes that only have an id and
+    never load the row (ratings). Light select: no `content`."""
+    try:
+        r = supabase.table("resources").select("id,created_by,user_id,school_admin_id,target_audience").eq("id", resource_id).execute()
+    except Exception:
+        r = supabase.table("resources").select("id,created_by,user_id,target_audience").eq("id", resource_id).execute()
+    if not r.data or not _resource_readable_by(user, r.data[0]):
+        raise HTTPException(status_code=404, detail="Resource not found")
+
 def _resource_readable_by(user: dict, resource: dict) -> bool:
+    # Audience first: a caller who may not see this audience gets the same answer as for a missing item (the routes turn
+    # False into a 404).
+    if not _resource_audience_ok(user, resource):
+        return False
     if user.get("role") in ("admin", "superadmin"):
         return True
     sid = resource.get("school_admin_id")
@@ -5890,6 +5953,9 @@ async def get_resources(request: Request):
     caller_school_ids = set() if is_unrestricted else _resolve_caller_school_admin_ids(user)
     if not is_unrestricted:
         items = [r for r in items if not (r.get("school_admin_id") and r.get("school_admin_id") not in caller_school_ids)]
+    # Audience is a real restriction, decided by the caller's role (see _audiences_visible_to).
+    _aud = _audiences_visible_to(user)
+    items = [r for r in items if _resource_audience_ok(user, r, _aud)]
 
     # Real freemium gating, per Jono's explicit rule: the Emotion Program is entirely free for
     # everyone; every other program only has its first 2 weeks free. Resources are NOT hidden
@@ -16661,7 +16727,7 @@ async def create_admin_resource(request: Request):
         _limit_mb = _upload_limit_mb(user)
         if len(_payload) > _limit_mb * 1024 * 1024 * 4 // 3:
             raise HTTPException(status_code=413, detail=f"File too large. The limit is {_limit_mb} MB and this file is {len(_payload) * 3 / 4 / (1024 * 1024):.1f} MB.")
-    target_audience = body.get("target_audience", "both")
+    target_audience = _clean_audience(body.get("target_audience"), "both")
     topic = body.get("topic") or body.get("category") or "general"
     # Real fix Sep 11 (Phase 2.5 resource scoping): was unconditionally is_global=True for
     # ANY caller this role check allows, including school_admin - no live UI calls this
@@ -17481,6 +17547,8 @@ async def update_resource(resource_id: str, request: Request):
     update_data = {k: v for k, v in body.items() if k in allowed}
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
+    if "target_audience" in update_data:
+        update_data["target_audience"] = _clean_audience(update_data["target_audience"])
     if update_data.get("content_type") == "link" or (existing_row.get("content_type") == "link" and "content" in update_data):
         update_data["content"] = _clean_link_url(update_data.get("content") or "")
         if not update_data["content"]:
@@ -17621,9 +17689,9 @@ async def get_resource_previews(resource_id: str, request: Request, width: Optio
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        r = supabase.table("resources").select("id,is_global,created_by,user_id,school_admin_id,category,week_number").eq("id", resource_id).execute()
+        r = supabase.table("resources").select("id,is_global,created_by,user_id,school_admin_id,category,week_number,target_audience").eq("id", resource_id).execute()
     except Exception:
-        r = supabase.table("resources").select("id,is_global,created_by,user_id,category,week_number").eq("id", resource_id).execute()
+        r = supabase.table("resources").select("id,is_global,created_by,user_id,category,week_number,target_audience").eq("id", resource_id).execute()
     if not r.data or not _resource_readable_by(user, r.data[0]):
         raise HTTPException(status_code=404, detail="Resource not found")
     if _resources_lock_applies(user) and _resource_locked_for_free_tier(r.data[0]):
@@ -17796,16 +17864,9 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
             continue
         r["is_locked"] = _resource_locked_for_free_tier(r)
 
-    # Determine which audiences to show
-    # If caller specifies audience=parents, show parents+both
-    # If caller specifies audience=teachers (default), show teachers+both
-    # If no audience specified, show all
-    if audience == "parents":
-        allowed_audiences = ["parents", "both", None, ""]
-    elif audience == "teachers":
-        allowed_audiences = ["teachers", "both", None, ""]
-    else:
-        allowed_audiences = ["teachers", "parents", "both", None, ""]
+    # Which audiences to show is decided by the caller's ROLE (see _audiences_visible_to). The ?audience= parameter is only
+    # honoured for superadmin/admin (to narrow what they see); for every other role it is ignored.
+    allowed_audiences = _audiences_visible_to(user, audience)
 
     # Real fix Sep 11 (Phase 2.5 resource scoping, read-side): closes the cross-school
     # leak found in the parity audit - a resource with school_admin_id set is now only
@@ -17818,8 +17879,7 @@ async def get_teacher_resources(request: Request, topic: Optional[str] = None, a
 
     visible = []
     for r in all_resources:
-        r_audience = r.get("target_audience", "both")
-        if r_audience not in allowed_audiences:
+        if not _resource_audience_ok(user, r, allowed_audiences):
             continue
         resource_topic = r.get("topic") or r.get("category") or "general"
         if topic and topic != "all" and resource_topic != topic:
@@ -17904,7 +17964,7 @@ async def create_teacher_resource(request: Request):
     # BOTH (teacher-to-teacher and teacher-to-parent are both "yes" in Jono's rules).
     # Parents are already blocked above from reaching this endpoint at all, so parent
     # posting to either hub is correctly prevented without needing topic-specific logic.
-    audience = body.get("target_audience") or body.get("audience") or "teachers"
+    audience = _clean_audience(body.get("target_audience") or body.get("audience"), "teachers")
     content = body.get("content") or ""
     # Allow video URLs (stored as content, no size limit)
     _content_type = body.get("content_type", "text")
@@ -18103,7 +18163,7 @@ async def update_teacher_resource(resource_id: str, request: Request):
     # the admin form edited order_index (drag-and-drop sort position) instead.
     for field in ("title", "description", "order_index", "target_audience", "week_number"):
         if field in body:
-            updates[field] = body[field]
+            updates[field] = _clean_audience(body[field]) if field == "target_audience" else body[field]
     # Real fix Sep 11 (Resources Manager build): topic/category was silently unsupported
     # here at all - the new manager's Topic dropdown edited nothing, live-confirmed this
     # session (a PUT changing topic returned 200 but the value never actually changed).
@@ -18154,6 +18214,7 @@ async def rate_teacher_resource(resource_id: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     body = await request.json()
+    _require_resource_readable(user, resource_id)
     rating = int(body.get("rating", 0))
     comment = (body.get("comment") or "").strip() or None
     if rating < 1 or rating > 5:
@@ -18186,6 +18247,7 @@ async def get_teacher_resource_ratings(resource_id: str, request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    _require_resource_readable(user, resource_id)
     try:
         result = supabase.table("teacher_resource_ratings").select("*").eq("resource_id", resource_id).order("created_at", desc=True).execute()
         ratings = result.data or []
@@ -25002,7 +25064,7 @@ async def delete_family_custom_strategy(strategy_id: str, request: Request):
 
 @api_router.get("/parent/resources")
 async def get_parent_resources(request: Request, topic: Optional[str] = None):
-    """Resources visible to parents — those uploaded with audience=parents or both."""
+    """Resources visible to the caller by role (a parent: parents + both). Same audience rule as every other resource route."""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -25027,7 +25089,7 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
         all_resources = resources_result.data or []
         is_unrestricted = user.get("role") in ("admin", "superadmin")
         caller_school_ids = set() if is_unrestricted else _resolve_caller_school_admin_ids(user)
-        allowed_audiences = ["parents", "both", None, ""]
+        allowed_audiences = _audiences_visible_to(user)   # by the caller's role, not hardcoded to parents
         visible = []
         # Real fix Sep 24 (item6, second device-log pass - Metro log: "first GET /resources
         # times out, later ones succeed"): this used to issue ONE teacher_resource_ratings
@@ -25049,8 +25111,7 @@ async def get_parent_resources(request: Request, topic: Optional[str] = None):
         except Exception:
             all_ratings = []
         for r in all_resources:
-            r_audience = r.get("target_audience", "both")
-            if r_audience not in allowed_audiences:
+            if not _resource_audience_ok(user, r, allowed_audiences):
                 continue
             resource_topic = r.get("topic") or r.get("category") or "general"
             if topic and topic != "all" and resource_topic != topic:

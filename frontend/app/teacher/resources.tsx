@@ -693,7 +693,6 @@ export default function TeacherResourcesScreen() {
                   { id: 'teachers', label: '👩‍🏫 ' + (t('audience_teachers') || 'Teachers') },
                   { id: 'parents', label: '👨‍👩‍👧 ' + (t('audience_parents') || 'Parents') },
                   { id: 'both', label: '🌐 ' + (t('audience_both') || 'Both') },
-                  { id: 'admin', label: '🔐 ' + (t('audience_admin_review') || 'Admin Review') },
                 ].map(opt => (
                   <TouchableOpacity
                     key={opt.id}
