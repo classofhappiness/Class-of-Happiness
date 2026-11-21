@@ -2486,5 +2486,20 @@
   "class_favourites_ribbon": "Favorito da turma",
   "class_favourites_a11y": "Criaturas que as crianças da nossa comunidade mais usam",
   "country_privacy_note": "Opcional. O teu país é usado apenas para totais anónimos e nunca é mostrado publicamente nem a outros utilizadores.",
-  "country_prompt_body": "Opcional. O teu país é usado apenas para totais anónimos e nunca é mostrado publicamente nem a outros utilizadores."
+  "country_prompt_body": "Opcional. O teu país é usado apenas para totais anónimos e nunca é mostrado publicamente nem a outros utilizadores.",
+  "letter_spacing": "Espaçamento entre letras",
+  "opendyslexic_font": "Tipo de letra OpenDyslexic",
+  "opendyslexic_helper": "Um tipo de letra alternativo que algumas pessoas acham mais fácil de ler. A investigação não mostrou que ajude toda a gente.",
+  "opendyslexic_unsupported": "Este tipo de letra não está disponível no idioma atual. É usado o tipo de letra normal.",
+  "reading_preview_label": "Pré-visualização",
+  "reading_font": "Tipo de letra de leitura",
+  "reading_preview_sentence": "A rápida raposa castanha salta sobre o cão preguiçoso. As emoções vêm e vão como o tempo.",
+  "spacing_large": "Grande",
+  "spacing_max": "Nível máximo: {em}em",
+  "spacing_medium": "Médio",
+  "spacing_off": "Desligado",
+  "spacing_small": "Pequeno",
+  "uses_normal_font": "Usa o tipo de letra normal:",
+  "word_spacing": "Espaçamento entre palavras",
+  "works_with_font": "Funciona com este tipo de letra:"
 }

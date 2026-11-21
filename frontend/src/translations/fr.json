@@ -2495,5 +2495,20 @@
   "class_favourites_ribbon": "Favori de la classe",
   "class_favourites_a11y": "Les créatures que les enfants de notre communauté utilisent le plus",
   "country_privacy_note": "Facultatif. Ton pays sert uniquement à des totaux anonymes et n'est jamais affiché publiquement ni aux autres utilisateurs.",
-  "country_prompt_body": "Facultatif. Ton pays sert uniquement à des totaux anonymes et n'est jamais affiché publiquement ni aux autres utilisateurs."
+  "country_prompt_body": "Facultatif. Ton pays sert uniquement à des totaux anonymes et n'est jamais affiché publiquement ni aux autres utilisateurs.",
+  "letter_spacing": "Espacement des lettres",
+  "opendyslexic_font": "Police OpenDyslexic",
+  "opendyslexic_helper": "Une police alternative que certaines personnes trouvent plus facile à lire. La recherche n'a pas montré qu'elle aide tout le monde.",
+  "opendyslexic_unsupported": "Cette police n'est pas disponible dans la langue actuelle. La police normale est utilisée.",
+  "reading_preview_label": "Aperçu",
+  "reading_font": "Police de lecture",
+  "reading_preview_sentence": "Le rapide renard brun saute par-dessus le chien paresseux. Les émotions vont et viennent comme la météo.",
+  "spacing_large": "Grand",
+  "spacing_max": "Cran maximal : {em}em",
+  "spacing_medium": "Moyen",
+  "spacing_off": "Désactivé",
+  "spacing_small": "Petit",
+  "uses_normal_font": "Utilise la police normale :",
+  "word_spacing": "Espacement des mots",
+  "works_with_font": "Fonctionne avec cette police :"
 }

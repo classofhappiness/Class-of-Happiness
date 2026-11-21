@@ -2338,5 +2338,20 @@
   "class_favourites_ribbon": "班级最爱",
   "class_favourites_a11y": "我们社区的孩子最常使用的生物",
   "country_privacy_note": "可选。你的国家仅用于匿名统计总数，绝不会公开显示，也不会向其他用户显示。",
-  "country_prompt_body": "可选。你的国家仅用于匿名统计总数，绝不会公开显示，也不会向其他用户显示。"
+  "country_prompt_body": "可选。你的国家仅用于匿名统计总数，绝不会公开显示，也不会向其他用户显示。",
+  "letter_spacing": "字母间距",
+  "opendyslexic_font": "OpenDyslexic 字体",
+  "opendyslexic_helper": "一种替代字体，有些人觉得它更容易阅读。研究并未表明它对每个人都有帮助。",
+  "opendyslexic_unsupported": "当前语言不支持此字体，将使用普通字体。",
+  "reading_preview_label": "预览",
+  "reading_font": "阅读字体",
+  "reading_preview_sentence": "敏捷的棕色狐狸跳过了懒狗。情绪就像天气一样来来去去。",
+  "spacing_large": "大",
+  "spacing_max": "最大档位：{em}em",
+  "spacing_medium": "中",
+  "spacing_off": "关",
+  "spacing_small": "小",
+  "uses_normal_font": "使用普通字体：",
+  "word_spacing": "单词间距",
+  "works_with_font": "适用于此字体："
 }

@@ -2495,5 +2495,20 @@
   "class_favourites_ribbon": "Klassenliebling",
   "class_favourites_a11y": "Die Kreaturen, die Kinder in unserer Gemeinschaft am meisten nutzen",
   "country_privacy_note": "Optional. Dein Land wird nur für anonyme Gesamtzahlen verwendet und nie öffentlich oder anderen Nutzern angezeigt.",
-  "country_prompt_body": "Optional. Dein Land wird nur für anonyme Gesamtzahlen verwendet und nie öffentlich oder anderen Nutzern angezeigt."
+  "country_prompt_body": "Optional. Dein Land wird nur für anonyme Gesamtzahlen verwendet und nie öffentlich oder anderen Nutzern angezeigt.",
+  "letter_spacing": "Buchstabenabstand",
+  "opendyslexic_font": "OpenDyslexic-Schrift",
+  "opendyslexic_helper": "Eine alternative Schrift, die manche Menschen leichter lesen. Die Forschung hat nicht gezeigt, dass sie allen hilft.",
+  "opendyslexic_unsupported": "Diese Schrift ist in der aktuellen Sprache nicht verfügbar. Es wird die normale Schrift verwendet.",
+  "reading_preview_label": "Vorschau",
+  "reading_font": "Leseschrift",
+  "reading_preview_sentence": "Der schnelle braune Fuchs springt über den faulen Hund. Gefühle kommen und gehen wie das Wetter.",
+  "spacing_large": "Groß",
+  "spacing_max": "Größte Stufe: {em}em",
+  "spacing_medium": "Mittel",
+  "spacing_off": "Aus",
+  "spacing_small": "Klein",
+  "uses_normal_font": "Verwendet die normale Schrift:",
+  "word_spacing": "Wortabstand",
+  "works_with_font": "Funktioniert mit dieser Schrift:"
 }

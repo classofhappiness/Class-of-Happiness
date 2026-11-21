@@ -2338,5 +2338,20 @@
   "class_favourites_ribbon": "المفضّل في الصف",
   "class_favourites_a11y": "المخلوقات التي يستخدمها أطفال مجتمعنا أكثر من غيرها",
   "country_privacy_note": "اختياري. يُستخدم بلدك فقط في الإجماليات المجهولة ولا يُعرض أبدًا علنًا أو لمستخدمين آخرين.",
-  "country_prompt_body": "اختياري. يُستخدم بلدك فقط في الإجماليات المجهولة ولا يُعرض أبدًا علنًا أو لمستخدمين آخرين."
+  "country_prompt_body": "اختياري. يُستخدم بلدك فقط في الإجماليات المجهولة ولا يُعرض أبدًا علنًا أو لمستخدمين آخرين.",
+  "letter_spacing": "تباعد الأحرف",
+  "opendyslexic_font": "خط OpenDyslexic",
+  "opendyslexic_helper": "خط بديل يجده بعض الأشخاص أسهل في القراءة. لم تُثبت الأبحاث أنه يساعد الجميع.",
+  "opendyslexic_unsupported": "هذا الخط غير متاح في اللغة الحالية. يتم استخدام الخط العادي.",
+  "reading_preview_label": "معاينة",
+  "reading_font": "خط القراءة",
+  "reading_preview_sentence": "الثعلب البني السريع يقفز فوق الكلب الكسول. المشاعر تأتي وتذهب مثل الطقس.",
+  "spacing_large": "كبير",
+  "spacing_max": "أكبر درجة: {em}em",
+  "spacing_medium": "متوسط",
+  "spacing_off": "إيقاف",
+  "spacing_small": "صغير",
+  "uses_normal_font": "يستخدم الخط العادي:",
+  "word_spacing": "تباعد الكلمات",
+  "works_with_font": "يعمل مع هذا الخط:"
 }

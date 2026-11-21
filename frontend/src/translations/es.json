@@ -2486,5 +2486,20 @@
   "class_favourites_ribbon": "Favorita de la clase",
   "class_favourites_a11y": "Las criaturas que más usan los niños de nuestra comunidad",
   "country_privacy_note": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios.",
-  "country_prompt_body": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios."
+  "country_prompt_body": "Opcional. Tu país se usa solo para totales anónimos y nunca se muestra públicamente ni a otros usuarios.",
+  "letter_spacing": "Espaciado entre letras",
+  "opendyslexic_font": "Fuente OpenDyslexic",
+  "opendyslexic_helper": "Una fuente alternativa que a algunas personas les resulta más fácil de leer. La investigación no ha demostrado que ayude a todos.",
+  "opendyslexic_unsupported": "Esta fuente no está disponible en el idioma actual. Se usa la fuente normal.",
+  "reading_preview_label": "Vista previa",
+  "reading_font": "Fuente de lectura",
+  "reading_preview_sentence": "El veloz zorro marrón salta sobre el perro perezoso. Las emociones van y vienen como el clima.",
+  "spacing_large": "Grande",
+  "spacing_max": "Paso máximo: {em}em",
+  "spacing_medium": "Medio",
+  "spacing_off": "Desactivado",
+  "spacing_small": "Pequeño",
+  "uses_normal_font": "Usa la fuente normal:",
+  "word_spacing": "Espaciado entre palabras",
+  "works_with_font": "Funciona con esta fuente:"
 }

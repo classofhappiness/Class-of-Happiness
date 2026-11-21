@@ -2495,5 +2495,20 @@
   "class_favourites_ribbon": "Preferita della classe",
   "class_favourites_a11y": "Le creature che i bambini della nostra comunità usano di più",
   "country_privacy_note": "Facoltativo. Il tuo paese viene usato solo per totali anonimi e non viene mai mostrato pubblicamente né ad altri utenti.",
-  "country_prompt_body": "Facoltativo. Il tuo paese viene usato solo per totali anonimi e non viene mai mostrato pubblicamente né ad altri utenti."
+  "country_prompt_body": "Facoltativo. Il tuo paese viene usato solo per totali anonimi e non viene mai mostrato pubblicamente né ad altri utenti.",
+  "letter_spacing": "Spaziatura tra le lettere",
+  "opendyslexic_font": "Carattere OpenDyslexic",
+  "opendyslexic_helper": "Un carattere alternativo che alcune persone trovano più facile da leggere. La ricerca non ha dimostrato che aiuti tutti.",
+  "opendyslexic_unsupported": "Questo carattere non è disponibile nella lingua attuale. Viene usato il carattere normale.",
+  "reading_preview_label": "Anteprima",
+  "reading_font": "Carattere di lettura",
+  "reading_preview_sentence": "La rapida volpe marrone salta sopra il cane pigro. Le emozioni vanno e vengono come il tempo.",
+  "spacing_large": "Grande",
+  "spacing_max": "Livello massimo: {em}em",
+  "spacing_medium": "Medio",
+  "spacing_off": "Disattivato",
+  "spacing_small": "Piccolo",
+  "uses_normal_font": "Usa il carattere normale:",
+  "word_spacing": "Spaziatura tra le parole",
+  "works_with_font": "Funziona con questo carattere:"
 }
