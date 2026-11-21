@@ -16768,7 +16768,12 @@ async def debug_student_classrooms(request: Request):
     Real fix Sep 25 (item 15, auth-guard audit): closes the gap flagged-but-not-fixed on Sep
     10 below - this had NO authentication at all, dumping EVERY student's name across the
     entire platform (plus every classroom and the 10 most recent alerts) to anyone. Restricted
-    to superadmin, matching this file's other debug/admin-only routes, rather than removed."""
+    to superadmin, matching this file's other debug/admin-only routes, rather than removed.
+
+    Nov 15: off by default. Unless the environment variable DEBUG_ENDPOINTS is exactly "1" this route answers 404 as if it did
+    not exist (before any login check), because it lists every child's name. DEBUG_ENDPOINTS must NOT be set on Railway."""
+    if os.environ.get("DEBUG_ENDPOINTS") != "1":
+        raise HTTPException(status_code=404, detail="Not found")
     user = await get_current_user(request)
     if not user or user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
