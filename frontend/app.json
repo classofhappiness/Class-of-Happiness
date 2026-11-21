@@ -19,14 +19,14 @@
         "NSPhotoLibraryAddUsageDescription": "Save photos from Class of Happiness",
         "UIDesignRequiresCompatibility": true
       },
-      "buildNumber": "33",
+      "buildNumber": "34",
       "entitlements": {
         "aps-environment": "production"
       }
     },
     "android": {
       "package": "com.classofhappiness.app",
-      "versionCode": 25,
+      "versionCode": 26,
       "allowBackup": false,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
