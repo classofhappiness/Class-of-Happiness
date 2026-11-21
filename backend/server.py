@@ -17735,6 +17735,7 @@ async def get_teacher_resource_topics():
         {"id": "leader_online", "name": "Leader Online"},
         {"id": "you_are_what_you_eat", "name": "You Are What You Eat"},
         {"id": "coh_entrepreneur", "name": "COH Entrepreneur"},
+        {"id": "change_and_loss", "name": "Change and Loss"},
         {"id": "special_needs_education", "name": "Special Needs Education"},
         {"id": "general", "name": "General"},
     ]

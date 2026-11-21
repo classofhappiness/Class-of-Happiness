@@ -17,6 +17,7 @@ export const PRIMARY_RESOURCE_TOPIC_ORDER: string[] = [
   'leader_online',
   'you_are_what_you_eat',
   'coh_entrepreneur',
+  'change_and_loss',
 ];
 
 // Reorders any topic list so the 4 primary topics above come first, in that exact order,

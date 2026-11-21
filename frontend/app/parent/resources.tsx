@@ -58,6 +58,7 @@ const getTopics = (t: (key: string) => string) => [
     { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' as const },
     { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' as const },
     { id: 'coh_entrepreneur', name: t('coh_entrepreneur') || 'COH Entrepreneur', icon: 'storefront' as const },
+    { id: 'change_and_loss', name: t('change_and_loss') || 'Change and Loss', icon: 'favorite-border' as const },
     { id: 'special_needs', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' as const },
     { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' as const },
   ]),

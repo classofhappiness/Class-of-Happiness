@@ -60,6 +60,7 @@ export default function TeacherResourcesScreen() {
     { id: 'leader_online', name: t('leader_online') || 'Leader Online', icon: 'computer' },
     { id: 'you_are_what_you_eat', name: t('you_are_what_you_eat') || 'You Are What You Eat', icon: 'restaurant' },
     { id: 'coh_entrepreneur', name: t('coh_entrepreneur') || 'COH Entrepreneur', icon: 'storefront' },
+    { id: 'change_and_loss', name: t('change_and_loss') || 'Change and Loss', icon: 'favorite-border' },
     { id: 'special_needs_education', name: t('special_needs_education') || 'Special Needs', icon: 'accessibility' },
     { id: 'teacher_hub', name: t('teacher_hub') || 'Teacher Hub', icon: 'groups' },
     { id: 'parent_hub', name: t('parent_hub') || 'Parent Hub', icon: 'family-restroom' },
