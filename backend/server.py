@@ -17559,7 +17559,7 @@ async def update_resource(resource_id: str, request: Request):
 
 
 @api_router.get("/resources/{resource_id}/download")
-async def download_resource_pdf(resource_id: str, request: Request):
+async def download_resource_pdf(resource_id: str, request: Request, inline: Optional[int] = None):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -17584,7 +17584,11 @@ async def download_resource_pdf(resource_id: str, request: Request):
         raise HTTPException(status_code=500, detail="Stored PDF data is invalid")
 
     filename = resource.get("pdf_filename") or f"{resource.get('title', 'resource')}.pdf"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    # ?inline=1: show in the browser (portal "Open") instead of saving it. Only the Content-Disposition changes - every
+    # permission and lock check above is the same for both. The login may come from the Authorization header (the portal
+    # does this, so no token is put in the URL), the cookie, or the legacy ?token= used by old app builds.
+    disposition = "inline" if inline == 1 else "attachment"
+    headers = {"Content-Disposition": f'{disposition}; filename="{filename}"'}
     return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers)
 
 
