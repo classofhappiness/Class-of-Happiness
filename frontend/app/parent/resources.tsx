@@ -487,6 +487,18 @@ export default function ResourcesScreen() {
           </Text>
         )}
 
+        {/* Same count line as the teacher screen's header (same translation keys, same rule: every item in the selected topic
+            the server returned for this caller, locked ones included). Both lists are already filtered by the caller's role on
+            the server (parents + both), so teacher-only items are never counted. Hidden while loading and for an empty topic
+            (that one shows "Coming soon"). */}
+        {!loading && filteredResources.length > 0 && (
+          <Text style={styles.topicCount}>
+            {filteredResources.length === 1
+              ? (t('resources_available_count_one') || '1 resource available')
+              : (t('resources_available_count_other') || '{count} resources available').replace('{count}', String(filteredResources.length))}
+          </Text>
+        )}
+
         {/* Adult-only slim banners: payment trouble, and "some activities are paid" (only when something loaded is locked) */}
         <PaymentIssueBanner />
         <PaidFeatureBanner visible={[...resources, ...parentTeacherResources].some((r: any) => r.is_locked)} t={t} onPress={() => router.push('/subscription')} />
@@ -705,6 +717,7 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, color: '#999', fontWeight: '500' },
   tabTextActive: { color: '#5C6BC0' },
   topicScroll: { marginBottom: 16 },
+  topicCount: { fontSize: 14, color: '#666', marginBottom: 12 },
   topicChip: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: 'white',
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginRight: 8,
