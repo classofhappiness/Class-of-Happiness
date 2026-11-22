@@ -2722,6 +2722,7 @@ class ResourceCreate(BaseModel):
     pdf_filename: Optional[str] = None
     category: str = "general"
     is_global: bool = False
+    curriculum_links: Optional[dict] = None
 
 class CustomHelperCreate(BaseModel):
     student_id: Optional[str] = None
@@ -5761,6 +5762,69 @@ def _resources_lock_applies(user: dict) -> bool:
         return not (_admin_is_active(user["user_id"]) or _trial_is_valid(user))
     return _is_genuinely_free_tier(user)
 
+# ---- Curriculum map ------------------------------------------------------------------------------------------
+# resources.curriculum_links = {framework: [{"code": str, "proposed": bool}]}. proposed:true means a suggested code
+# nobody has confirmed yet; only an admin can store proposed:false. Which frameworks a viewer cares about (e.g. the
+# country default) is a client concern: the server always returns every framework.
+CURRICULUM_FRAMEWORKS = ("england_dfe", "england_pshe", "scotland", "wales", "ni", "australia", "cambridge", "portugal", "casel")
+CURRICULUM_CODE_MAX = 40
+CURRICULUM_CODES_PER_FRAMEWORK_MAX = 100
+CURRICULUM_READ_ROLES = ("teacher", "school_admin", "admin", "superadmin")
+CURRICULUM_ADMIN_ROLES = ("admin", "superadmin")
+
+def _clean_curriculum_links(value, user: dict, existing=None) -> dict:
+    """Validated curriculum_links for a resource write. Shape {framework: [{code, proposed}]}: framework must be one of
+    CURRICULUM_FRAMEWORKS, code a non-empty string of at most 40 characters, proposed a boolean (absent = true, i.e.
+    unconfirmed). Empty lists are dropped and repeated codes are kept once (a code stays proposed if any copy is).
+    proposed:false is admin-only: a non-admin may only re-send a code that is ALREADY confirmed in `existing` (the row's
+    stored links), so editing other things never fails for them; they can never confirm a code or add a confirmed one."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise HTTPException(status_code=400, detail="curriculum_links must be an object of {framework: [{code, proposed}]}")
+    is_admin = user.get("role") in CURRICULUM_ADMIN_ROLES
+    confirmed_before = set()
+    if isinstance(existing, dict):
+        for fw, items in existing.items():
+            for it in (items if isinstance(items, list) else []):
+                if isinstance(it, dict) and it.get("proposed") is False:
+                    confirmed_before.add((fw, it.get("code")))
+    out = {}
+    for fw, items in value.items():
+        if fw not in CURRICULUM_FRAMEWORKS:
+            raise HTTPException(status_code=400, detail=f"Unknown curriculum framework: {str(fw)[:40]}")
+        if not isinstance(items, list):
+            raise HTTPException(status_code=400, detail=f"curriculum_links.{fw} must be a list of {{code, proposed}}")
+        if len(items) > CURRICULUM_CODES_PER_FRAMEWORK_MAX:
+            raise HTTPException(status_code=400, detail=f"Too many codes for {fw}")
+        seen = {}
+        for it in items:
+            if not isinstance(it, dict):
+                raise HTTPException(status_code=400, detail=f"curriculum_links.{fw} items must be {{code, proposed}} objects")
+            code = it.get("code")
+            if not isinstance(code, str) or not code.strip():
+                raise HTTPException(status_code=400, detail=f"Every curriculum code in {fw} needs a non-empty code")
+            code = code.strip()
+            if len(code) > CURRICULUM_CODE_MAX:
+                raise HTTPException(status_code=400, detail=f"Curriculum code too long (max {CURRICULUM_CODE_MAX} characters)")
+            proposed = it.get("proposed", True)
+            if not isinstance(proposed, bool):
+                raise HTTPException(status_code=400, detail="proposed must be true or false")
+            if proposed is False and not is_admin and (fw, code) not in confirmed_before:
+                raise HTTPException(status_code=403, detail="Only an admin can confirm a curriculum code (proposed: false)")
+            seen[code] = (seen[code] and proposed) if code in seen else proposed
+        if seen:
+            out[fw] = [{"code": c, "proposed": p} for c, p in seen.items()]
+    return out
+
+def _existing_curriculum_links(resource_id: str) -> dict:
+    """Stored links for one resource (light select, never content). {} if none or the column does not exist yet."""
+    try:
+        r = supabase.table("resources").select("curriculum_links").eq("id", resource_id).execute()
+        return (r.data[0].get("curriculum_links") if r.data else None) or {}
+    except Exception:
+        return {}
+
 def _clean_card_fields(body: dict) -> dict:
     """Validated card fields present in `body` (absent keys are left alone, blank clears)."""
     out = {}
@@ -6013,12 +6077,140 @@ async def create_resource(resource: ResourceCreate, request: Request):
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    if resource.curriculum_links is not None:
+        new_resource["curriculum_links"] = _clean_curriculum_links(resource.curriculum_links, user)
     try:
         result = _insert_resource_row(new_resource, owner_school_admin_id)
     except Exception as e:
         logger.error(f"Resource insert failed: {e}")
         raise HTTPException(status_code=500, detail="Could not save the resource. Please try again.")
     return result.data[0] if result.data else new_resource
+
+# ---- Curriculum map endpoints (read side) ---------------------------------------------------------------------
+def _curriculum_user_or_403(request_user, admin_only: bool = False) -> dict:
+    if not request_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    allowed = CURRICULUM_ADMIN_ROLES if admin_only else CURRICULUM_READ_ROLES
+    if request_user.get("role") not in allowed:
+        raise HTTPException(status_code=403, detail="Admin access required" if admin_only else "Not available for this account")
+    return request_user
+
+def _curriculum_rows(columns: str) -> list:
+    """Every active resource with the given LIGHT columns (never content), paged past the 1000-row API cap."""
+    out, start = [], 0
+    while True:
+        page = supabase.table("resources").select(columns).eq("is_active", True).order("id").range(start, start + 999).execute().data or []
+        out += page
+        if len(page) < 1000:
+            return out
+        start += 1000
+
+def _links_of(row: dict) -> dict:
+    v = row.get("curriculum_links")
+    return v if isinstance(v, dict) else {}
+
+@api_router.get("/curriculum-map")
+async def get_curriculum_map(request: Request):
+    """Resources with their curriculum codes, for the Curriculum Map. Teacher, school_admin, admin and superadmin only
+    (a parent gets 403). Same visibility as the resource lists: other schools' private resources are hidden, and the
+    audience filter is decided by the caller's role. Selects light columns only - never `content` (base64 PDF).
+    Lock flag: the same freemium rule as GET /resources (_resources_lock_applies / _resource_locked_for_free_tier).
+    Returns every framework; narrowing to a country is the client's job."""
+    user = _curriculum_user_or_403(await get_current_user(request))
+    base = "id,title,topic,category,week_number,target_audience,age_min,age_max,duration_minutes,is_global,created_by,user_id,school_admin_id"
+    try:
+        try:
+            items = _curriculum_rows(base + ",curriculum_links")
+        except Exception:
+            items = _curriculum_rows(base)          # migration not run yet: every row simply has no codes
+    except Exception as e:
+        logger.error(f"get_curriculum_map error: {e}")
+        raise HTTPException(status_code=500, detail="Could not load the curriculum map")
+    if user.get("role") not in CURRICULUM_ADMIN_ROLES:
+        mine = _resolve_caller_school_admin_ids(user)
+        items = [r for r in items if not (r.get("school_admin_id") and r.get("school_admin_id") not in mine)]
+    aud = _audiences_visible_to(user)
+    items = [r for r in items if _resource_audience_ok(user, r, aud)]
+    lock_applies = _resources_lock_applies(user)
+    out = []
+    for r in items:
+        topic = r.get("topic") or r.get("category") or "general"
+        out.append({
+            "id": r["id"],
+            "title": r.get("title"),
+            "topic": topic,
+            "week_number": r.get("week_number"),
+            "audience": r.get("target_audience"),
+            "age_min": r.get("age_min"),
+            "age_max": r.get("age_max"),
+            "minutes": r.get("duration_minutes"),
+            "is_locked": bool(lock_applies and _resource_locked_for_free_tier({"category": r.get("category") or topic, "week_number": r.get("week_number")})),
+            "curriculum_links": _links_of(r),
+        })
+    return out
+
+@api_router.get("/curriculum-statements")
+async def get_curriculum_statements(request: Request):
+    """{framework, code, statement} for every code currently used by an active resource. Same roles as /curriculum-map.
+    statement is null when the framework text is not available yet."""
+    _curriculum_user_or_403(await get_current_user(request))
+    try:
+        used = set()
+        for r in _curriculum_rows("id,curriculum_links"):
+            for fw, items in _links_of(r).items():
+                for it in (items if isinstance(items, list) else []):
+                    if isinstance(it, dict) and it.get("code"):
+                        used.add((fw, it["code"]))
+        rows, start = [], 0
+        while True:
+            page = supabase.table("curriculum_statements").select("framework,code,statement").order("framework").order("code").range(start, start + 999).execute().data or []
+            rows += page
+            if len(page) < 1000:
+                break
+            start += 1000
+    except Exception as e:
+        logger.error(f"get_curriculum_statements error: {e}")
+        raise HTTPException(status_code=500, detail="Could not load curriculum statements")
+    have = {(r["framework"], r["code"]): r for r in rows}
+    return [{"framework": fw, "code": c, "statement": (have.get((fw, c)) or {}).get("statement")} for fw, c in sorted(used)]
+
+@api_router.get("/curriculum-map/gaps")
+async def get_curriculum_gaps(request: Request):
+    """Admin/superadmin only. Per framework: codes in use that have no statement text; plus the active resources with no
+    codes at all, and those whose codes are all still proposed (none confirmed)."""
+    _curriculum_user_or_403(await get_current_user(request), admin_only=True)
+    try:
+        resources = _curriculum_rows("id,title,topic,category,week_number,curriculum_links")
+        rows, start = [], 0
+        while True:
+            page = supabase.table("curriculum_statements").select("framework,code,statement").order("framework").order("code").range(start, start + 999).execute().data or []
+            rows += page
+            if len(page) < 1000:
+                break
+            start += 1000
+    except Exception as e:
+        logger.error(f"get_curriculum_gaps error: {e}")
+        raise HTTPException(status_code=500, detail="Could not load the curriculum gaps")
+    with_text = {(r["framework"], r["code"]) for r in rows if (r.get("statement") or "").strip()}
+    used = {fw: set() for fw in CURRICULUM_FRAMEWORKS}
+    no_codes, only_proposed = [], []
+    for r in resources:
+        links = _links_of(r)
+        items = [(fw, it) for fw, lst in links.items() for it in (lst if isinstance(lst, list) else []) if isinstance(it, dict) and it.get("code")]
+        brief = {"id": r["id"], "title": r.get("title"), "topic": r.get("topic") or r.get("category") or "general", "week_number": r.get("week_number")}
+        if not items:
+            no_codes.append(brief)
+            continue
+        for fw, it in items:
+            if fw in used:
+                used[fw].add(it["code"])
+        if all(it.get("proposed") is not False for _, it in items):
+            only_proposed.append(brief)
+    return {
+        "codes_without_statement": {fw: sorted(c for c in codes if (fw, c) not in with_text) for fw, codes in used.items()},
+        "resources_without_codes": no_codes,
+        "resources_with_only_proposed_codes": only_proposed,
+    }
 
 @api_router.delete("/resources/{resource_id}")
 async def delete_resource(resource_id: str, request: Request):
@@ -16752,6 +16944,8 @@ async def create_admin_resource(request: Request):
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    if "curriculum_links" in body:
+        resource_data["curriculum_links"] = _clean_curriculum_links(body.get("curriculum_links"), user)
 
     try:
         result = _insert_resource_row(resource_data, owner_school_admin_id)
@@ -17548,10 +17742,12 @@ async def update_resource(resource_id: str, request: Request):
     if not _resource_writable_by(user, existing_row):
         raise HTTPException(status_code=403, detail="Not allowed")
     body = await request.json()
-    allowed = ["title", "description", "content_type", "content", "pdf_filename", "category", "topic", "target_audience", "is_active"]
+    allowed = ["title", "description", "content_type", "content", "pdf_filename", "category", "topic", "target_audience", "is_active", "curriculum_links"]
     update_data = {k: v for k, v in body.items() if k in allowed}
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
+    if "curriculum_links" in update_data:
+        update_data["curriculum_links"] = _clean_curriculum_links(update_data["curriculum_links"], user, _existing_curriculum_links(resource_id))
     if "target_audience" in update_data:
         update_data["target_audience"] = _clean_audience(update_data["target_audience"])
     if update_data.get("content_type") == "link" or (existing_row.get("content_type") == "link" and "content" in update_data):
@@ -18033,6 +18229,8 @@ async def create_teacher_resource(request: Request):
         "week_number": body.get("week_number"),
         **_clean_card_fields(body),
     }
+    if "curriculum_links" in body:
+        resource_data["curriculum_links"] = _clean_curriculum_links(body.get("curriculum_links"), user)
     try:
         result = _insert_resource_row(resource_data, owner_school_admin_id)
         return result.data[0] if result.data else resource_data
@@ -18180,6 +18378,8 @@ async def update_teacher_resource(resource_id: str, request: Request):
     # Both kept in sync, matching create_teacher_resource's own topic==category convention
     # (various read paths check r.get("topic") or r.get("category") inconsistently).
     updates.update(_clean_card_fields(body))
+    if "curriculum_links" in body:
+        updates["curriculum_links"] = _clean_curriculum_links(body["curriculum_links"], user, _existing_curriculum_links(resource_id))
     if "topic" in body or "category" in body:
         new_topic = body.get("topic") or body.get("category")
         if new_topic:
